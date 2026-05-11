@@ -1,0 +1,25 @@
+@{
+    ViewData["Title"] = "Sign in";
+    var error = ViewData["Error"] as string;
+    var bannerMessage = error switch
+    {
+        "not_allowed" => "This Google account is not authorized for Dragon Vault.",
+        "auth_failed" => "Sign-in failed. Please try again.",
+        _ => null,
+    };
+}
+
+<div class="page-shell">
+    <div class="page-card">
+        <h1>Dragon Vault</h1>
+
+        @if (bannerMessage is not null)
+        {
+            <div class="page-card-alert" role="alert" data-error-code="@error">
+                @bannerMessage
+            </div>
+        }
+
+        <a href="/Account/ExternalLogin" class="btn-primary" role="button">Sign in with Google</a>
+    </div>
+</div>

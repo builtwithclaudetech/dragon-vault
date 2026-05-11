@@ -1,0 +1,77 @@
+@{
+    ViewData["Title"] = "Passkeys";
+    var userId = (string)(ViewData["UserId"] ?? string.Empty);
+}
+
+@*
+    Phase D surface for passkey registration / revocation. Bare-bones markup; visual
+    polish is queued for web-designer-ux. Buttons gate access to crypto.js +
+    webauthn.js — registration triggers a master-password prompt because we need to
+    re-derive the raw encryption-key bytes to wrap them under the passkey-derived key.
+*@
+
+<div class="settings-page">
+    <h1>Passkeys</h1>
+
+    <p>
+        Register a passkey on this device (Windows Hello, Android pattern unlock, or a
+        security key) to unlock the vault without typing your master password. Your master
+        password and recovery code remain the only way to recover the vault if every
+        passkey is lost.
+    </p>
+
+    <section data-user-id="@userId">
+        <h2>Registered passkeys</h2>
+        <p id="passkey-status" role="status" aria-live="polite"></p>
+        <table id="passkey-list" class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">Nickname</th>
+                    <th scope="col">Method</th>
+                    <th scope="col">Transports</th>
+                    <th scope="col">Created</th>
+                    <th scope="col">Last used</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="passkey-list-body">
+                <tr><td colspan="6">Loading…</td></tr>
+            </tbody>
+        </table>
+
+        <br />
+        <button id="register-passkey-button" class="btn-primary" type="button">Register new passkey</button>
+    </section>
+</div>
+
+<dialog id="register-passkey-dialog" aria-labelledby="register-passkey-title">
+    <form id="register-passkey-form" method="dialog">
+        <h2 id="register-passkey-title">Register a new passkey</h2>
+        <p>
+            We need your master password again so we can re-derive the encryption key
+            and wrap it under the new passkey. The password is never sent to the server.
+        </p>
+
+        <div>
+            <label for="register-nickname">Nickname (optional)</label>
+            <input id="register-nickname" name="nickname" type="text" maxlength="64" autocomplete="off" />
+        </div>
+
+        <div>
+            <label for="register-master-password">Master password</label>
+            <input id="register-master-password" name="masterPassword" type="password" autocomplete="current-password" required />
+        </div>
+
+        <p id="register-status" role="status" aria-live="polite"></p>
+
+        <div class="dialog-actions">
+            <button id="register-cancel" class="btn-secondary" type="button" value="cancel">Cancel</button>
+            <span class="dialog-actions-spacer" aria-hidden="true"></span>
+            <button id="register-confirm" class="btn-primary" type="button" value="confirm">Register</button>
+        </div>
+    </form>
+</dialog>
+
+@section Scripts {
+    <script type="module" src="/js/settings-passkeys.js"></script>
+}

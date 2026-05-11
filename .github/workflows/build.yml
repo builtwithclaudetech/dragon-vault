@@ -1,0 +1,33 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore src/
+
+      - name: Build
+        run: dotnet build src/ --no-restore -c Release
+
+      - name: Test
+        run: dotnet test tests/ --no-build -c Release --verbosity normal
+
+      - name: PII check
+        run: |
+          if grep -rn "piercephilip\|YOUR-SERVER-IP_REAL\|@gmail\.com.*allowed\|ssDragon" src/ deploy/ tests/ --include="*.cs" --include="*.cshtml" --include="*.json" --include="*.sh"; then
+            echo "FAIL: PII detected!" && exit 1
+          fi
+          echo "PII check passed"

@@ -1,0 +1,205 @@
+@{
+    ViewData["Title"] = "Set up master password";
+    var kdfSalt = (string)(ViewData["KdfSalt"] ?? string.Empty);
+    var recoverySalt = (string)(ViewData["RecoverySalt"] ?? string.Empty);
+    var iterations = (int)(ViewData["KdfIterations"] ?? 3);
+    var memoryKb = (int)(ViewData["KdfMemoryKb"] ?? 65536);
+    var parallelism = (int)(ViewData["KdfParallelism"] ?? 4);
+    var outputBytes = (int)(ViewData["KdfOutputBytes"] ?? 32);
+    var recoveryCode = (string)(ViewData["RecoveryCode"] ?? string.Empty);
+    var userId = (string)(ViewData["UserId"] ?? string.Empty);
+}
+
+@*
+    Phase C surface. UX polish (Bootstrap, mobile safe areas, real strength-meter
+    visuals) is queued for web-designer-ux. Functional + accessible first.
+
+    Server emits the per-user salts + recovery code via data-* attributes on the form;
+    the recovery code lives in this HTML payload exactly once and is never re-rendered
+    after the user navigates away. Reloading the Setup page rotates all material.
+*@
+
+<div class="form-page">
+    <h1>Set up your master password</h1>
+
+    <p>Choose a master password for your vault. <strong>Write down the recovery code below — it is the only way to recover your vault if you forget your master password.</strong> The server cannot recover it for you.</p>
+
+    <form id="setup-form"
+          data-user-id="@userId"
+          data-kdf-salt="@kdfSalt"
+          data-recovery-salt="@recoverySalt"
+          data-iterations="@iterations"
+          data-memory-kb="@memoryKb"
+          data-parallelism="@parallelism"
+          data-output-bytes="@outputBytes">
+
+        <fieldset>
+            <legend>Recovery code (shown once)</legend>
+            <p id="recovery-code-display" class="recovery-code-display" data-code="@recoveryCode">@recoveryCode</p>
+            <button id="copy-recovery" class="btn-secondary" type="button">Copy recovery code</button>
+            <p>Type the recovery code back to confirm you have it:</p>
+            <label for="recovery-confirm">Recovery code confirmation</label>
+            <input id="recovery-confirm" name="recovery-confirm" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required />
+            <p id="recovery-mismatch" class="validation-message" role="status" style="display:none;">The recovery code does not match what was shown above.</p>
+            <p id="recovery-match" class="validation-success" role="status" style="display:none;">Recovery code matches.</p>
+        </fieldset>
+
+        <fieldset>
+            <legend>Master password</legend>
+            <label for="password">Master password (≥ 12 characters)</label>
+            <input id="password" name="password" type="password" autocomplete="new-password" minlength="12" required />
+            <div id="strength-meter" aria-live="polite">
+                <div class="strength-meter-bar">
+                    <div id="strength-bar" style="height:6px;width:0;background:var(--color-hairline);border-radius:var(--r-pill);transition:width 0.2s,background 0.2s;"></div>
+                </div>
+                <p id="strength-text" class="strength-text"></p>
+            </div>
+
+            <label for="password-confirm">Confirm master password</label>
+            <input id="password-confirm" name="password-confirm" type="password" autocomplete="new-password" minlength="12" required />
+            <p id="password-mismatch" class="validation-message" role="status" style="display:none;">The two passwords do not match.</p>
+            <p id="password-too-short" class="validation-message" role="status" style="display:none;">Master password must be at least 12 characters.</p>
+        </fieldset>
+
+        <button id="submit" class="btn-primary" type="submit" disabled>Continue</button>
+        <p id="setup-status" class="form-status" role="status"></p>
+    </form>
+</div>
+
+@section Scripts {
+    <script src="/js/vendor/zxcvbn.js"></script>
+    <script type="module">
+        import { buildSetupPayload, postJson } from '/js/crypto.js';
+
+        const form = document.getElementById('setup-form');
+        const password = document.getElementById('password');
+        const passwordConfirm = document.getElementById('password-confirm');
+        const recoveryConfirm = document.getElementById('recovery-confirm');
+        const submit = document.getElementById('submit');
+        const passwordMismatch = document.getElementById('password-mismatch');
+        const passwordTooShort = document.getElementById('password-too-short');
+        const recoveryMismatch = document.getElementById('recovery-mismatch');
+        const recoveryMatch = document.getElementById('recovery-match');
+        const strengthBar = document.getElementById('strength-bar');
+        const strengthText = document.getElementById('strength-text');
+        const recoveryDisplay = document.getElementById('recovery-code-display');
+        const status = document.getElementById('setup-status');
+        const expectedRecoveryCode = recoveryDisplay.dataset.code;
+
+        function b64ToBytes(b64) {
+            const s = atob(b64);
+            const out = new Uint8Array(s.length);
+            for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+            return out;
+        }
+
+        const STRENGTH_COLORS = ['#c33', '#e07a18', '#d4b80b', '#62b500', '#1a8c3a'];
+        const STRENGTH_LABELS = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong'];
+
+        function updateStrength() {
+            const v = password.value;
+            if (!v) {
+                strengthBar.style.width = '0';
+                strengthBar.style.background = '#ccc';
+                strengthText.textContent = '';
+                return;
+            }
+            // zxcvbn is a window-global from the vendored script.
+            const z = window.zxcvbn ? window.zxcvbn(v) : { score: 0, feedback: { warning: '', suggestions: [] } };
+            const score = z.score; // 0..4
+            strengthBar.style.width = ((score + 1) * 20) + '%';
+            strengthBar.style.background = STRENGTH_COLORS[score];
+            const fb = z.feedback || {};
+            const note = fb.warning || (fb.suggestions || []).join(' ');
+            strengthText.textContent = STRENGTH_LABELS[score] + (note ? ' — ' + note : '');
+        }
+
+        function validate() {
+            const pw = password.value;
+            const pwConfirm = passwordConfirm.value;
+            const recovery = recoveryConfirm.value;
+
+            const tooShort = pw.length > 0 && pw.length < 12;
+            const mismatch = pwConfirm.length > 0 && pw !== pwConfirm;
+            const recoveryOk = recovery.length > 0 && recovery === expectedRecoveryCode;
+
+            passwordTooShort.style.display = tooShort ? 'block' : 'none';
+            passwordMismatch.style.display = mismatch ? 'block' : 'none';
+            recoveryMismatch.style.display = (recovery.length > 0 && !recoveryOk) ? 'block' : 'none';
+            recoveryMatch.style.display = recoveryOk ? 'block' : 'none';
+
+            // Visual feedback on the recovery-confirm input
+            if (recovery.length > 0) {
+                recoveryConfirm.classList.toggle('input-valid', recoveryOk);
+                recoveryConfirm.classList.toggle('input-invalid', !recoveryOk);
+            } else {
+                recoveryConfirm.classList.remove('input-valid', 'input-invalid');
+            }
+
+            // Visual feedback on password-confirm input
+            if (pwConfirm.length > 0) {
+                passwordConfirm.classList.toggle('input-valid', pw === pwConfirm && pw.length >= 12);
+                passwordConfirm.classList.toggle('input-invalid', pw !== pwConfirm || tooShort);
+            } else {
+                passwordConfirm.classList.remove('input-valid', 'input-invalid');
+            }
+
+            const ok = pw.length >= 12 && pw === pwConfirm && recoveryOk;
+            submit.disabled = !ok;
+        }
+
+        password.addEventListener('input', () => { updateStrength(); validate(); });
+        passwordConfirm.addEventListener('input', validate);
+        recoveryConfirm.addEventListener('input', validate);
+
+        form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            submit.disabled = true;
+            status.textContent = 'Deriving key (this can take a few seconds)…';
+            try {
+                const payload = await buildSetupPayload({
+                    userId: form.dataset.userId,
+                    masterPassword: password.value,
+                    recoveryCode: recoveryConfirm.value,
+                    kdfSalt: b64ToBytes(form.dataset.kdfSalt),
+                    recoverySalt: b64ToBytes(form.dataset.recoverySalt),
+                    kdfIterations: parseInt(form.dataset.iterations, 10),
+                    kdfMemoryKb: parseInt(form.dataset.memoryKb, 10),
+                    kdfParallelism: parseInt(form.dataset.parallelism, 10),
+                    kdfOutputBytes: parseInt(form.dataset.outputBytes, 10),
+                });
+
+                // Scrub the recovery code from the DOM as soon as we no longer need it.
+                recoveryDisplay.textContent = '••••••••••••••••••••••••••••••••';
+                delete recoveryDisplay.dataset.code;
+
+                status.textContent = 'Saving verifier…';
+                const res = await postJson('/api/account/setup', payload);
+                if (!res.ok) {
+                    status.textContent = 'Setup failed. Please reload and try again.';
+                    submit.disabled = false;
+                    return;
+                }
+                status.textContent = 'Setup complete. Redirecting…';
+                window.location.href = '/Vault/Unlock';
+            } catch (err) {
+                console.error(err);
+                status.textContent = 'Setup failed: ' + (err && err.message ? err.message : err);
+                submit.disabled = false;
+            }
+        });
+
+        document.getElementById('copy-recovery').addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(expectedRecoveryCode);
+                const btn = document.getElementById('copy-recovery');
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy recovery code'; }, 2000);
+            } catch (err) {
+                console.error('copy failed', err);
+            }
+        });
+
+        validate();
+    </script>
+}

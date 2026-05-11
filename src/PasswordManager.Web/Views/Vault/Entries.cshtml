@@ -1,0 +1,1112 @@
+@{
+    ViewData["Title"] = "Vault";
+    var userId = (string)(ViewData["UserId"] ?? string.Empty);
+}
+
+@*
+    Phase F vault entries view + Phase G UX polish (search, tag filter, copy
+    auto-clear countdown, show/hide). Six standard fields only — custom fields
+    are deferred to Phase H per the build plan.
+
+    Hook points the integration tests pin (DO NOT rename without updating tests):
+      - id="lock-now"           lock-now button (REQ-019)
+      - data-user-id="..."      AAD binding seed for crypto.js
+      - imports /js/session-lock.js + initSessionManagement (REQ-018/REQ-081)
+      - references /Vault/Unlock for the locked-state bounce (REQ-020)
+*@
+
+<div class="vault-shell" data-view="vault-entries" data-user-id="@userId">
+    <div class="vault-header-block">
+        <header class="vault-header">
+            <h1>Dragon Vault</h1>
+            <div class="vault-header-actions">
+                <button id="new-entry" class="btn-primary" type="button">+ New Entry</button>
+                <button id="lock-now" class="btn-secondary" type="button" aria-label="Lock the vault now">Lock now</button>
+            </div>
+        </header>
+    </div>
+
+    <div id="passkey-prompt" class="passkey-prompt" hidden>
+        <span>Set up faster unlock with a passkey</span>
+        <button id="passkey-prompt-setup" class="btn-primary btn-sm" type="button">Set up</button>
+        <button id="passkey-prompt-dismiss" class="btn-icon" type="button" aria-label="Dismiss">&times;</button>
+    </div>
+
+    <div class="vault-toolbar">
+        <div class="vault-search" role="search">
+            <label for="vault-search-input" class="visually-hidden">Search entries</label>
+            <input id="vault-search-input"
+                   type="search"
+                   placeholder="Search name, username, URL, notes, tags…"
+                   autocomplete="off"
+                   aria-controls="entry-list" />
+            <button id="clear-filters" class="btn-secondary" type="button" hidden>Clear filters</button>
+        </div>
+    </div>
+
+    <div id="vault-tagbar" class="vault-tagbar" role="group" aria-label="Filter by tag"></div>
+
+    <main>
+        <p id="vault-status" role="status">Loading vault…</p>
+        <div id="entry-list"></div>
+    </main>
+</div>
+
+<dialog id="entry-modal" aria-labelledby="entry-modal-title">
+    <form id="entry-form" method="dialog">
+        <input type="hidden" id="entry-id" />
+        <input type="hidden" id="entry-rowversion" />
+
+        <h2 id="entry-modal-title">New entry</h2>
+
+        <div>
+            <label for="field-name">Name</label>
+            <input id="field-name" type="text" required autocomplete="off" />
+        </div>
+
+        <div>
+            <label for="field-username">Username</label>
+            <input id="field-username" type="text" autocomplete="off" />
+        </div>
+
+        <div>
+            <label for="field-password">Password</label>
+            <div class="password-field-row">
+                <input id="field-password" type="password" autocomplete="off" />
+                <button id="field-password-toggle"
+                        class="btn-password-action"
+                        type="button"
+                        aria-label="Show password"
+                        aria-pressed="false">Show</button>
+                <button id="field-password-generate"
+                        class="btn-password-action"
+                        type="button"
+                        aria-label="Generate a password">Generate</button>
+                <button id="field-password-hibp"
+                        class="btn-password-action btn-password-hibp"
+                        type="button"
+                        aria-label="Check password for known breaches">Check breaches</button>
+            </div>
+            <p id="field-password-hibp-result"
+               class="breach-result"
+               role="status"
+               aria-live="polite"
+               hidden></p>
+        </div>
+
+        <div>
+            <label for="field-url">URL</label>
+            <input id="field-url" type="url" autocomplete="off" />
+        </div>
+
+        <div>
+            <label for="field-notes">Notes</label>
+            <textarea id="field-notes" rows="3" autocomplete="off"></textarea>
+        </div>
+
+        <div>
+            <label for="field-tags">Tags (comma-separated)</label>
+            <input id="field-tags" type="text" autocomplete="off" />
+        </div>
+
+        <fieldset class="totp-section">
+            <legend>TOTP (one-time codes)</legend>
+            <div>
+                <label for="field-totp-secret">Base32 secret <span class="totp-hint">(or paste an otpauth:// URI)</span></label>
+                <input id="field-totp-secret"
+                       type="text"
+                       autocomplete="off"
+                       spellcheck="false"
+                       inputmode="latin"
+                       placeholder="e.g. JBSWY3DPEHPK3PXP" />
+            </div>
+            <p id="field-totp-status" class="totp-status" role="status" aria-live="polite"></p>
+        </fieldset>
+
+        <fieldset class="custom-fields">
+            <legend>Custom fields</legend>
+            <div id="custom-fields-list"></div>
+            <button id="custom-fields-add" class="btn-secondary" type="button">+ Add custom field</button>
+        </fieldset>
+
+        <p id="entry-form-status" role="alert"></p>
+
+        <div class="dialog-actions">
+            <button id="entry-cancel" class="btn-secondary" type="button">Cancel</button>
+            <span class="dialog-actions-spacer" aria-hidden="true"></span>
+            <button id="entry-save" class="btn-primary" type="submit">Save</button>
+        </div>
+    </form>
+</dialog>
+
+@section Scripts {
+    <script type="module">
+        import { isUnlocked } from '/js/crypto.js';
+        import { initSessionManagement, lockVault } from '/js/session-lock.js';
+        import {
+            loadAndDecryptEntries,
+            encryptAndCreateEntry,
+            encryptAndUpdateEntry,
+            deleteEntry,
+            copyWithAutoClear,
+            cancelClipboardAutoClear,
+        } from '/js/vault.js';
+        import { openGeneratorDialog } from '/js/generator.js';
+        import { checkHibpBreach } from '/js/hibp.js';
+        import { listCredentials } from '/js/webauthn.js';
+        import {
+            generateTotp,
+            decodeBase32,
+            parseOtpauth,
+            startTotpDisplay,
+        } from '/js/totp.js';
+
+        // REQ-020: if we land here without an unlocked key, check for a sessionStorage
+        // handoff from the Unlock page before bouncing. The raw key bytes are placed in
+        // sessionStorage during unlock and immediately cleared after import here.
+        async function tryResumeUnlock() {
+            const stored = sessionStorage.getItem('dv-unlock-key');
+            if (stored) {
+                try {
+                    const { rawKeyB64, userId } = JSON.parse(stored);
+                    const { setUnlockedKeyFromBytes } = await import('/js/crypto.js');
+                    await setUnlockedKeyFromBytes(Uint8Array.from(atob(rawKeyB64), c => c.charCodeAt(0)), userId);
+                    return true;
+                } catch (_) { /* corrupt or tampered — fall through to bounce */ }
+                finally { sessionStorage.removeItem('dv-unlock-key'); }
+            }
+            return false;
+        }
+
+        (async () => {
+            if (!isUnlocked() && !(await tryResumeUnlock())) {
+                window.location.replace('/Vault/Unlock');
+                return;
+            }
+            initSessionManagement();
+            wirePage();
+            showPasskeyPromptIfNeeded();
+        })();
+
+        async function showPasskeyPromptIfNeeded() {
+            if (sessionStorage.getItem('dv-passkey-prompt-dismissed')) return;
+            try {
+                const creds = await listCredentials();
+                if (Array.isArray(creds) && creds.length > 0) return;
+                document.getElementById('passkey-prompt').hidden = false;
+            } catch (_) { /* WebAuthn unavailable — don't show prompt */ }
+        }
+
+        document.getElementById('passkey-prompt-dismiss').addEventListener('click', () => {
+            document.getElementById('passkey-prompt').hidden = true;
+            sessionStorage.setItem('dv-passkey-prompt-dismissed', '1');
+        });
+
+        document.getElementById('passkey-prompt-setup').addEventListener('click', () => {
+            window.location.href = '/Settings/Passkeys';
+        });
+
+        function wirePage() {
+            // REQ-019: explicit "Lock now". lockVault() nulls the key, broadcasts to
+            // other tabs, and navigates back to /Vault/Unlock.
+            document.getElementById('lock-now').addEventListener('click', () => {
+                lockVault();
+            });
+
+            const modal = document.getElementById('entry-modal');
+            const form = document.getElementById('entry-form');
+            const formStatus = document.getElementById('entry-form-status');
+            const status = document.getElementById('vault-status');
+            const list = document.getElementById('entry-list');
+            const searchInput = document.getElementById('vault-search-input');
+            const tagbar = document.getElementById('vault-tagbar');
+            const clearFiltersBtn = document.getElementById('clear-filters');
+            const passwordInput = document.getElementById('field-password');
+            const passwordToggle = document.getElementById('field-password-toggle');
+            const passwordGenerate = document.getElementById('field-password-generate');
+            const customFieldsList = document.getElementById('custom-fields-list');
+            const customFieldsAdd = document.getElementById('custom-fields-add');
+            const totpSecretInput = document.getElementById('field-totp-secret');
+            const totpStatus = document.getElementById('field-totp-status');
+
+            // Live-preview tokens for the modal's TOTP secret. Kept module-local
+            // so each input event can cancel any in-flight async preview.
+            let totpPreviewToken = 0;
+            // Monotonic token for HIBP breach-check guards. Incremented on
+            // every render() and on every modal open/close cycle so that
+            // in-flight handlers from stale DOM nodes are silently dropped.
+            let hibpCheckToken = 0;
+            // Per-row TOTP display widget stop()s, keyed by entry id. Torn down
+            // on re-render, on row removal, and on vault:locked.
+            const totpStopFns = new Map();
+
+            // Single source of truth: every decrypted entry, keyed by id. Filtering
+            // derives a view from this Map without mutating it.
+            const entriesById = new Map();
+
+            // UI filter state. The tag set uses OR semantics among selected tags
+            // and AND-combines with the search text (REQ-034).
+            const filterState = {
+                query: '',
+                selectedTags: new Set(),
+            };
+
+            document.getElementById('new-entry').addEventListener('click', () => {
+                openModalForCreate();
+            });
+
+            document.getElementById('entry-cancel').addEventListener('click', () => {
+                closeModal();
+            });
+
+            form.addEventListener('submit', async (ev) => {
+                ev.preventDefault();
+                await onSave();
+            });
+
+            searchInput.addEventListener('input', () => {
+                filterState.query = searchInput.value.trim().toLowerCase();
+                applyFilters();
+            });
+
+            clearFiltersBtn.addEventListener('click', () => {
+                filterState.query = '';
+                filterState.selectedTags.clear();
+                searchInput.value = '';
+                applyFilters();
+            });
+
+            passwordToggle.addEventListener('click', () => {
+                togglePasswordField(passwordInput, passwordToggle);
+            });
+
+            // REQ-037 + REQ-038: explicit Generate button. Never auto-fires —
+            // the dialog only opens on this click. The generated password is
+            // applied to the entry form ONLY when the user clicks
+            // "Use this password" inside the dialog.
+            passwordGenerate.addEventListener('click', () => {
+                openGeneratorDialog((generated) => {
+                    passwordInput.value = generated;
+                    // Reveal the field so the user can sanity-check what they
+                    // just inserted; copy/save still work the same either way.
+                    if (passwordInput.type === 'password') {
+                        togglePasswordField(passwordInput, passwordToggle);
+                    }
+                });
+            });
+
+            // REQ-045..047: Check the modal password against HIBP breaches.
+            // Runs entirely client-side — only 5 hex chars of SHA-1 leave
+            // the browser; the full password and full hash never do.
+            const breachCheckBtn = document.getElementById('field-password-hibp');
+            const breachCheckResult = document.getElementById('field-password-hibp-result');
+            breachCheckBtn.addEventListener('click', async () => {
+                const pw = passwordInput.value;
+                if (!pw) return;
+                const myToken = ++hibpCheckToken;
+                breachCheckBtn.disabled = true;
+                breachCheckBtn.textContent = 'Checking…';
+                const r = await checkHibpBreach(pw, { signal: AbortSignal.timeout(15000) });
+                if (myToken !== hibpCheckToken) return;
+                breachCheckBtn.disabled = false;
+                breachCheckBtn.textContent = 'Check breaches';
+                showBreachResult(breachCheckResult, r);
+            });
+
+            customFieldsAdd.addEventListener('click', () => {
+                appendCustomFieldRow('', '');
+            });
+
+            totpSecretInput.addEventListener('input', () => {
+                onTotpSecretInput();
+            });
+
+            // Lock-event listener: when crypto.js wipes the key, session-lock.js
+            // dispatches 'vault:locked'. Wipe the cached plaintext, reset filters,
+            // and cancel any active clipboard timer. The redirect to /Vault/Unlock
+            // will land before next paint, but we belt-and-brace clear the cache
+            // to avoid leaking stale plaintext via devtools.
+            document.addEventListener('vault:locked', () => {
+                entriesById.clear();
+                filterState.query = '';
+                filterState.selectedTags.clear();
+                cancelClipboardAutoClear();
+                stopAllTotpDisplays();
+                list.innerHTML = '';
+                tagbar.innerHTML = '';
+            });
+
+            refresh();
+
+            async function refresh() {
+                try {
+                    status.textContent = 'Loading vault…';
+                    const items = await loadAndDecryptEntries();
+                    entriesById.clear();
+                    for (const item of items) {
+                        entriesById.set(item.id, item);
+                    }
+                    // Drop any selected tag that no longer exists post-refresh.
+                    pruneSelectedTags();
+                    renderTagBar();
+                    applyFilters();
+                } catch (err) {
+                    status.textContent = 'Could not load vault. Try reloading.';
+                }
+            }
+
+            // ----- pure-ish view derivation -----
+
+            function parseTags(rawTags) {
+                if (!rawTags) return [];
+                return rawTags
+                    .split(',')
+                    .map(t => t.trim())
+                    .filter(t => t.length > 0);
+            }
+
+            function entryMatches(item, query, selectedTags) {
+                const itemTags = parseTags(item.tags);
+                if (selectedTags.size > 0) {
+                    const tagHit = itemTags.some(t => selectedTags.has(t.toLowerCase()));
+                    if (!tagHit) return false;
+                }
+                if (!query) return true;
+                const haystacks = [
+                    item.name || '',
+                    fieldValue(item, 'username'),
+                    fieldValue(item, 'url'),
+                    fieldValue(item, 'notes'),
+                    itemTags.join(' '),
+                ];
+                return haystacks.some(h => h.toLowerCase().includes(query));
+            }
+
+            function deriveView() {
+                const all = Array.from(entriesById.values());
+                const filtered = all.filter(item =>
+                    entryMatches(item, filterState.query, filterState.selectedTags));
+                return { all, filtered };
+            }
+
+            function pruneSelectedTags() {
+                const live = new Set();
+                for (const item of entriesById.values()) {
+                    for (const t of parseTags(item.tags)) {
+                        live.add(t.toLowerCase());
+                    }
+                }
+                for (const t of Array.from(filterState.selectedTags)) {
+                    if (!live.has(t)) filterState.selectedTags.delete(t);
+                }
+            }
+
+            function distinctTags() {
+                // Map of lowercased-key -> display label (first-seen casing).
+                const map = new Map();
+                for (const item of entriesById.values()) {
+                    for (const t of parseTags(item.tags)) {
+                        const key = t.toLowerCase();
+                        if (!map.has(key)) map.set(key, t);
+                    }
+                }
+                return Array.from(map.entries())
+                    .sort((a, b) => a[1].localeCompare(b[1]));
+            }
+
+            function applyFilters() {
+                const { all, filtered } = deriveView();
+                render(filtered);
+                updateClearFiltersVisibility();
+                updateStatusLine(all.length, filtered.length);
+            }
+
+            function updateClearFiltersVisibility() {
+                const active = filterState.query.length > 0 || filterState.selectedTags.size > 0;
+                clearFiltersBtn.hidden = !active;
+            }
+
+            function updateStatusLine(total, shown) {
+                if (total === 0) {
+                    status.textContent = 'No entries yet. Click + New Entry to add one.';
+                    return;
+                }
+                if (shown === total) {
+                    status.textContent = `${total} entr${total === 1 ? 'y' : 'ies'}.`;
+                    return;
+                }
+                if (shown === 0) {
+                    status.textContent = 'No entries match the current filters.';
+                    return;
+                }
+                status.textContent = `Showing ${shown} of ${total} entries.`;
+            }
+
+            // ----- rendering -----
+
+            function renderTagBar() {
+                tagbar.innerHTML = '';
+                const tags = distinctTags();
+                for (const [key, label] of tags) {
+                    const pill = document.createElement('button');
+                    pill.type = 'button';
+                    pill.className = 'tag-pill';
+                    pill.textContent = label;
+                    pill.dataset.tagKey = key;
+                    const pressed = filterState.selectedTags.has(key);
+                    pill.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+                    pill.addEventListener('click', () => {
+                        if (filterState.selectedTags.has(key)) {
+                            filterState.selectedTags.delete(key);
+                            pill.setAttribute('aria-pressed', 'false');
+                        } else {
+                            filterState.selectedTags.add(key);
+                            pill.setAttribute('aria-pressed', 'true');
+                        }
+                        applyFilters();
+                    });
+                    tagbar.appendChild(pill);
+                }
+            }
+
+            function render(items) {
+                stopAllTotpDisplays();
+                hibpCheckToken++;
+                list.innerHTML = '';
+                for (const item of items) {
+                    list.appendChild(renderRow(item));
+                }
+            }
+
+            function stopAllTotpDisplays() {
+                for (const stop of totpStopFns.values()) {
+                    try { stop(); } catch (_) { /* noop */ }
+                }
+                totpStopFns.clear();
+            }
+
+            function renderRow(item) {
+                const row = document.createElement('article');
+                row.dataset.entryId = item.id;
+                row.className = 'vault-entry';
+
+                const title = document.createElement('h3');
+                title.textContent = item.name;
+                row.appendChild(title);
+
+                const username = fieldValue(item, 'username');
+                const password = fieldValue(item, 'password');
+                const url = fieldValue(item, 'url');
+
+                if (username) {
+                    row.appendChild(metaLine('Username', username));
+                }
+                if (url) {
+                    row.appendChild(metaLine('URL', url));
+                }
+                if (password) {
+                    row.appendChild(renderPasswordLine(password));
+                }
+
+                const tagList = parseTags(item.tags);
+                if (tagList.length > 0) {
+                    const wrap = document.createElement('p');
+                    wrap.className = 'vault-entry-tags';
+                    for (const t of tagList) {
+                        const span = document.createElement('span');
+                        span.className = 'vault-entry-tag';
+                        span.textContent = t;
+                        wrap.appendChild(span);
+                    }
+                    row.appendChild(wrap);
+                }
+
+                const customs = (item.fields || []).filter(f => f.fieldKind === 'custom');
+                if (customs.length > 0) {
+                    row.appendChild(renderCustomFields(customs));
+                }
+
+                const totpSecret = fieldValue(item, 'totp_secret');
+                if (totpSecret) {
+                    row.appendChild(renderTotpBlock(item.id, totpSecret));
+                }
+
+                row.appendChild(renderRowActions(item, username, password));
+                return row;
+            }
+
+            // TOTP row block (REQ-042, REQ-044): code + countdown ring + Copy
+            // button. The actual code generation + animation lives in
+            // /js/totp.js — this just builds the DOM and hands it to
+            // startTotpDisplay so the markup contract stays in one place.
+            function renderTotpBlock(entryId, secret) {
+                const wrap = document.createElement('div');
+                wrap.className = 'vault-entry-totp';
+
+                const label = document.createElement('strong');
+                label.className = 'vault-entry-totp-label';
+                label.textContent = 'TOTP:';
+                wrap.appendChild(label);
+
+                const codeEl = document.createElement('span');
+                codeEl.className = 'vault-totp-code';
+                codeEl.textContent = '------';
+                // aria-live deliberately omitted: a polite live region would
+                // announce a new code every 30s for every visible TOTP row.
+                // The user invokes "Copy" explicitly when they need the value.
+                wrap.appendChild(codeEl);
+
+                // Countdown ring. pathLength=100 normalises stroke-dashoffset to
+                // a 0..100 percentage so the CSS doesn't have to know the
+                // circumference. role=img + aria-hidden because the numeric
+                // countdown sibling is the screen-reader-friendly readout.
+                const ringNs = 'http://www.w3.org/2000/svg';
+                const ring = document.createElementNS(ringNs, 'svg');
+                ring.setAttribute('class', 'vault-totp-ring');
+                ring.setAttribute('viewBox', '0 0 36 36');
+                ring.setAttribute('aria-hidden', 'true');
+                ring.setAttribute('focusable', 'false');
+
+                const ringTrack = document.createElementNS(ringNs, 'circle');
+                ringTrack.setAttribute('class', 'vault-totp-ring-track');
+                ringTrack.setAttribute('cx', '18');
+                ringTrack.setAttribute('cy', '18');
+                ringTrack.setAttribute('r', '15');
+                ringTrack.setAttribute('pathLength', '100');
+                ring.appendChild(ringTrack);
+
+                const ringProgress = document.createElementNS(ringNs, 'circle');
+                ringProgress.setAttribute('class', 'vault-totp-ring-progress');
+                ringProgress.setAttribute('cx', '18');
+                ringProgress.setAttribute('cy', '18');
+                ringProgress.setAttribute('r', '15');
+                ringProgress.setAttribute('pathLength', '100');
+                ring.appendChild(ringProgress);
+
+                wrap.appendChild(ring);
+
+                const readout = document.createElement('span');
+                readout.className = 'vault-totp-countdown';
+                readout.setAttribute('aria-label', 'Seconds remaining');
+                wrap.appendChild(readout);
+
+                const copyBtn = document.createElement('button');
+                copyBtn.type = 'button';
+                copyBtn.className = 'btn btn-icon vault-totp-copy';
+                copyBtn.textContent = 'Copy';
+                copyBtn.setAttribute('aria-label', 'Copy TOTP code');
+                wrap.appendChild(copyBtn);
+
+                // Stop any prior display for this id (defensive — render()
+                // already wipes the map, but if a future caller renders one
+                // row in isolation this stays correct).
+                const prior = totpStopFns.get(entryId);
+                if (prior) {
+                    try { prior(); } catch (_) { /* noop */ }
+                }
+                const stop = startTotpDisplay(wrap, secret);
+                totpStopFns.set(entryId, stop);
+                return wrap;
+            }
+
+            // Custom fields render as a <dl> between tags and actions. Values
+            // are masked by default with a per-row Show/Hide toggle (same
+            // pattern as the password field) — custom-field values are often
+            // secrets (API tokens, security-question answers).
+            function renderCustomFields(customs) {
+                const dl = document.createElement('dl');
+                dl.className = 'vault-entry-customs';
+                const sorted = customs.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+                for (const f of sorted) {
+                    const dt = document.createElement('dt');
+                    dt.className = 'vault-entry-custom-key';
+                    dt.textContent = f.key || '(unnamed)';
+                    dl.appendChild(dt);
+
+                    const dd = document.createElement('dd');
+                    dd.className = 'vault-entry-custom-value';
+
+                    const valueSpan = document.createElement('span');
+                    const masked = '•'.repeat(8);
+                    valueSpan.textContent = masked;
+                    valueSpan.setAttribute('aria-label', `${f.key || 'Custom field'} hidden`);
+                    dd.appendChild(valueSpan);
+
+                    const toggle = document.createElement('button');
+                    toggle.type = 'button';
+                    toggle.className = 'btn btn-icon';
+                    toggle.textContent = 'Show';
+                    toggle.setAttribute('aria-label', `Show ${f.key || 'custom field'}`);
+                    toggle.setAttribute('aria-pressed', 'false');
+                    toggle.addEventListener('click', () => {
+                        const showing = toggle.getAttribute('aria-pressed') === 'true';
+                        if (showing) {
+                            valueSpan.textContent = masked;
+                            valueSpan.setAttribute('aria-label', `${f.key || 'Custom field'} hidden`);
+                            toggle.textContent = 'Show';
+                            toggle.setAttribute('aria-label', `Show ${f.key || 'custom field'}`);
+                            toggle.setAttribute('aria-pressed', 'false');
+                        } else {
+                            valueSpan.textContent = f.value;
+                            valueSpan.setAttribute('aria-label', `${f.key || 'Custom field'} visible`);
+                            toggle.textContent = 'Hide';
+                            toggle.setAttribute('aria-label', `Hide ${f.key || 'custom field'}`);
+                            toggle.setAttribute('aria-pressed', 'true');
+                        }
+                    });
+                    dd.appendChild(toggle);
+
+                    dl.appendChild(dd);
+                }
+                return dl;
+            }
+
+            function metaLine(label, value) {
+                const p = document.createElement('p');
+                p.className = 'vault-entry-meta';
+                const strong = document.createElement('strong');
+                strong.textContent = `${label}: `;
+                p.appendChild(strong);
+                p.appendChild(document.createTextNode(value));
+                return p;
+            }
+
+            // Per-row password line with eye toggle (REQ-036). Plaintext is set on the
+            // <span> only when the user explicitly reveals; otherwise we render a fixed
+            // 8-bullet mask so the row width stays stable across reveals.
+            function renderPasswordLine(password) {
+                const container = document.createElement('div');
+                container.className = 'vault-entry-password-wrap';
+
+                const p = document.createElement('p');
+                p.className = 'vault-entry-meta vault-entry-password';
+
+                const strong = document.createElement('strong');
+                strong.textContent = 'Password: ';
+                p.appendChild(strong);
+
+                const value = document.createElement('span');
+                const masked = '•'.repeat(8);
+                value.textContent = masked;
+                value.setAttribute('aria-label', 'Password hidden');
+                p.appendChild(value);
+
+                const toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.className = 'btn btn-icon';
+                toggle.textContent = 'Show';
+                toggle.setAttribute('aria-label', 'Show password');
+                toggle.setAttribute('aria-pressed', 'false');
+                toggle.addEventListener('click', () => {
+                    const showing = toggle.getAttribute('aria-pressed') === 'true';
+                    if (showing) {
+                        value.textContent = masked;
+                        value.setAttribute('aria-label', 'Password hidden');
+                        toggle.textContent = 'Show';
+                        toggle.setAttribute('aria-label', 'Show password');
+                        toggle.setAttribute('aria-pressed', 'false');
+                    } else {
+                        value.textContent = password;
+                        value.setAttribute('aria-label', 'Password visible');
+                        toggle.textContent = 'Hide';
+                        toggle.setAttribute('aria-label', 'Hide password');
+                        toggle.setAttribute('aria-pressed', 'true');
+                    }
+                });
+                p.appendChild(toggle);
+
+                // Check for breaches button (REQ-045..047)
+                const breachBtn = document.createElement('button');
+                breachBtn.type = 'button';
+                breachBtn.className = 'btn btn-sm';
+                breachBtn.textContent = 'Check breaches';
+                breachBtn.setAttribute('aria-label', 'Check password for known breaches');
+                p.appendChild(breachBtn);
+
+                container.appendChild(p);
+
+                // Breach result banner — hidden until a check completes
+                const result = document.createElement('p');
+                result.className = 'breach-result';
+                result.setAttribute('role', 'status');
+                result.setAttribute('aria-live', 'polite');
+                result.hidden = true;
+                container.appendChild(result);
+
+                breachBtn.addEventListener('click', async () => {
+                    const myToken = ++hibpCheckToken;
+                    breachBtn.disabled = true;
+                    breachBtn.textContent = 'Checking…';
+                    const r = await checkHibpBreach(password, { signal: AbortSignal.timeout(15000) });
+                    if (myToken !== hibpCheckToken) return;
+                    breachBtn.disabled = false;
+                    breachBtn.textContent = 'Check breaches';
+                    showBreachResult(result, r);
+                });
+
+                return container;
+            }
+
+            function renderRowActions(item, username, password) {
+                const actions = document.createElement('div');
+                actions.className = 'vault-entry-actions';
+
+                if (username) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn';
+                    btn.textContent = 'Copy username';
+                    btn.addEventListener('click', () => {
+                        // Username is not the secret — no auto-clear timer.
+                        navigator.clipboard.writeText(username).catch(() => { /* noop */ });
+                    });
+                    actions.appendChild(btn);
+                }
+                if (password) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn';
+                    btn.textContent = 'Copy password';
+                    btn.addEventListener('click', () => {
+                        copyWithAutoClear(password, btn);
+                    });
+                    actions.appendChild(btn);
+                }
+
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'btn';
+                editBtn.textContent = 'Edit';
+                editBtn.addEventListener('click', () => openModalForEdit(item.id));
+                actions.appendChild(editBtn);
+
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'btn btn-danger';
+                delBtn.textContent = 'Delete';
+                delBtn.addEventListener('click', () => onDelete(item.id, item.name));
+                actions.appendChild(delBtn);
+
+                return actions;
+            }
+
+            function fieldValue(item, kind) {
+                const f = (item.fields || []).find(x => x.fieldKind === kind);
+                return f ? f.value : '';
+            }
+
+            // ----- modal + show/hide for the edit form -----
+
+            function togglePasswordField(input, toggle) {
+                const showing = input.type === 'text';
+                if (showing) {
+                    input.type = 'password';
+                    toggle.textContent = 'Show';
+                    toggle.setAttribute('aria-label', 'Show password');
+                    toggle.setAttribute('aria-pressed', 'false');
+                } else {
+                    input.type = 'text';
+                    toggle.textContent = 'Hide';
+                    toggle.setAttribute('aria-label', 'Hide password');
+                    toggle.setAttribute('aria-pressed', 'true');
+                }
+            }
+
+            function resetPasswordVisibility() {
+                if (passwordInput.type !== 'password') {
+                    passwordInput.type = 'password';
+                    passwordToggle.textContent = 'Show';
+                    passwordToggle.setAttribute('aria-label', 'Show password');
+                    passwordToggle.setAttribute('aria-pressed', 'false');
+                }
+            }
+
+            // Breach check result display helper (Phase J, REQ-047).
+            // Sets the appropriate class, text, and unhides the element.
+            function showBreachResult(el, result) {
+                el.className = 'breach-result';
+                if (result.error) {
+                    el.classList.add('is-error');
+                    el.textContent = 'Could not check breaches — try again';
+                } else if (result.found) {
+                    el.classList.add('is-warning');
+                    const s = result.count === 1 ? '' : 'es';
+                    el.textContent = `This password has appeared in ${result.count} data breach${s}. Consider changing it.`;
+                } else {
+                    el.classList.add('is-clean');
+                    el.textContent = 'Not found in known breaches';
+                }
+                el.hidden = false;
+            }
+
+            function openModalForCreate() {
+                hibpCheckToken++;
+                document.getElementById('entry-modal-title').textContent = 'New entry';
+                document.getElementById('entry-id').value = '';
+                document.getElementById('entry-rowversion').value = '';
+                document.getElementById('field-name').value = '';
+                document.getElementById('field-username').value = '';
+                // REQ-038: new-entry form's password field MUST render empty.
+                // Generation only happens via the explicit Generate button.
+                passwordInput.value = '';
+                document.getElementById('field-url').value = '';
+                document.getElementById('field-notes').value = '';
+                document.getElementById('field-tags').value = '';
+                totpSecretInput.value = '';
+                totpStatus.textContent = '';
+                totpStatus.removeAttribute('data-totp-state');
+                clearCustomFieldRows();
+                resetPasswordVisibility();
+                formStatus.textContent = '';
+                breachCheckResult.hidden = true;
+                breachCheckResult.textContent = '';
+                openModal();
+            }
+
+            function openModalForEdit(id) {
+                const item = entriesById.get(id);
+                if (!item) return;
+                hibpCheckToken++;
+                document.getElementById('entry-modal-title').textContent = 'Edit entry';
+                document.getElementById('entry-id').value = item.id;
+                document.getElementById('entry-rowversion').value = item.rowVersion || '';
+                document.getElementById('field-name').value = item.name || '';
+                document.getElementById('field-username').value = fieldValue(item, 'username');
+                passwordInput.value = fieldValue(item, 'password');
+                document.getElementById('field-url').value = fieldValue(item, 'url');
+                document.getElementById('field-notes').value = fieldValue(item, 'notes');
+                document.getElementById('field-tags').value = item.tags || '';
+                totpSecretInput.value = fieldValue(item, 'totp_secret');
+                totpStatus.textContent = '';
+                totpStatus.removeAttribute('data-totp-state');
+                if (totpSecretInput.value) {
+                    onTotpSecretInput();
+                }
+                clearCustomFieldRows();
+                const customs = (item.fields || [])
+                    .filter(f => f.fieldKind === 'custom')
+                    .slice()
+                    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+                for (const f of customs) {
+                    appendCustomFieldRow(f.key || '', f.value || '');
+                }
+                resetPasswordVisibility();
+                formStatus.textContent = '';
+                breachCheckResult.hidden = true;
+                breachCheckResult.textContent = '';
+                openModal();
+            }
+
+            function clearCustomFieldRows() {
+                customFieldsList.innerHTML = '';
+            }
+
+            function appendCustomFieldRow(key, value) {
+                const row = document.createElement('div');
+                row.className = 'custom-field-row';
+
+                const keyInput = document.createElement('input');
+                keyInput.type = 'text';
+                keyInput.className = 'custom-field-label';
+                keyInput.placeholder = 'Label';
+                keyInput.autocomplete = 'off';
+                keyInput.setAttribute('aria-label', 'Custom field label');
+                keyInput.value = key;
+                row.appendChild(keyInput);
+
+                const valueInput = document.createElement('input');
+                valueInput.type = 'text';
+                valueInput.className = 'custom-field-value';
+                valueInput.placeholder = 'Value';
+                valueInput.autocomplete = 'off';
+                valueInput.setAttribute('aria-label', 'Custom field value');
+                valueInput.value = value;
+                row.appendChild(valueInput);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn btn-icon custom-field-remove';
+                removeBtn.setAttribute('aria-label', 'Remove this custom field');
+                removeBtn.textContent = '×';
+                removeBtn.addEventListener('click', () => {
+                    row.remove();
+                });
+                row.appendChild(removeBtn);
+
+                customFieldsList.appendChild(row);
+            }
+
+            function openModal() {
+                if (typeof modal.showModal === 'function') {
+                    modal.showModal();
+                } else {
+                    modal.setAttribute('open', '');
+                }
+            }
+
+            function closeModal() {
+                resetPasswordVisibility();
+                if (typeof modal.close === 'function') {
+                    modal.close();
+                } else {
+                    modal.removeAttribute('open');
+                }
+            }
+
+            // TOTP modal helper: live-validate the secret as the user types.
+            // Empty input clears the status. Non-empty input attempts an
+            // otpauth:// parse first (handy for paste-from-QR-app exports);
+            // if that doesn't apply, treat the input as raw base32. On success
+            // we show the current 6-digit code; on failure we surface a
+            // human-readable reason. Each call bumps a token so an in-flight
+            // async generateTotp can't overwrite a newer keystroke's preview.
+            async function onTotpSecretInput() {
+                const myToken = ++totpPreviewToken;
+                const raw = totpSecretInput.value;
+                if (!raw || raw.trim().length === 0) {
+                    totpStatus.textContent = '';
+                    totpStatus.removeAttribute('data-totp-state');
+                    return;
+                }
+                let candidate = raw.trim();
+                if (candidate.toLowerCase().startsWith('otpauth://')) {
+                    try {
+                        candidate = parseOtpauth(candidate);
+                        // Replace the URI with just the secret so save persists
+                        // the bare base32 — and the user sees what's stored.
+                        totpSecretInput.value = candidate;
+                    } catch (err) {
+                        totpStatus.textContent = err.message || 'Unsupported otpauth URI.';
+                        totpStatus.setAttribute('data-totp-state', 'error');
+                        return;
+                    }
+                }
+                try {
+                    decodeBase32(candidate);
+                } catch (_) {
+                    totpStatus.textContent = 'Invalid base32 secret.';
+                    totpStatus.setAttribute('data-totp-state', 'error');
+                    return;
+                }
+                try {
+                    const code = await generateTotp(candidate);
+                    if (myToken !== totpPreviewToken) return;
+                    totpStatus.textContent = `Current code: ${code.slice(0, 3)} ${code.slice(3)}`;
+                    totpStatus.setAttribute('data-totp-state', 'ok');
+                } catch (err) {
+                    if (myToken !== totpPreviewToken) return;
+                    totpStatus.textContent = err.message || 'Could not generate TOTP.';
+                    totpStatus.setAttribute('data-totp-state', 'error');
+                }
+            }
+
+            async function onSave() {
+                const id = document.getElementById('entry-id').value;
+                const rowVersion = document.getElementById('entry-rowversion').value;
+                // Gate save on a clean TOTP state — a non-empty secret that
+                // didn't decode cleanly should not be written. Empty is fine.
+                const totpRaw = totpSecretInput.value.trim();
+                if (totpRaw && totpStatus.getAttribute('data-totp-state') === 'error') {
+                    formStatus.textContent = 'Fix the TOTP secret before saving.';
+                    return;
+                }
+                const plain = collectFormPlain();
+                if (!plain.name) {
+                    formStatus.textContent = 'Name is required.';
+                    return;
+                }
+                try {
+                    formStatus.textContent = 'Saving…';
+                    if (id) {
+                        await encryptAndUpdateEntry(id, plain, rowVersion);
+                    } else {
+                        await encryptAndCreateEntry(plain);
+                    }
+                    closeModal();
+                    await refresh();
+                } catch (err) {
+                    formStatus.textContent = 'Save failed. ' + (err && err.message ? err.message : '');
+                }
+            }
+
+            function collectFormPlain() {
+                const fields = [];
+                const username = document.getElementById('field-username').value;
+                const password = passwordInput.value;
+                const url = document.getElementById('field-url').value;
+                const notes = document.getElementById('field-notes').value;
+                if (username) fields.push({ fieldKind: 'username', value: username, sortOrder: 0 });
+                if (password) fields.push({ fieldKind: 'password', value: password, sortOrder: 1 });
+                if (url) fields.push({ fieldKind: 'url', value: url, sortOrder: 2 });
+                if (notes) fields.push({ fieldKind: 'notes', value: notes, sortOrder: 3 });
+
+                // TOTP secret (REQ-041). Stored as the user-supplied base32 string
+                // (uppercased + whitespace-stripped — same shape decodeBase32 will
+                // accept on read). Only persisted if the input is non-empty AND
+                // decodes cleanly; the modal's input handler already surfaces a
+                // human-readable error and onSave gates on its state too.
+                const totpRaw = totpSecretInput.value;
+                if (totpRaw && totpRaw.trim().length > 0) {
+                    const normalized = totpRaw.replace(/\s+/g, '').toUpperCase();
+                    fields.push({
+                        fieldKind: 'totp_secret',
+                        value: normalized,
+                        sortOrder: 4,
+                    });
+                }
+
+                // Custom fields: serialize in DOM order, skip rows with empty
+                // labels (the value input alone has no meaning to render).
+                // sortOrder starts at 10 to leave headroom for well-known
+                // kinds at the low end of the range.
+                const customRows = customFieldsList.querySelectorAll('.custom-field-row');
+                let customSort = 10;
+                for (const row of customRows) {
+                    const labelEl = row.querySelector('.custom-field-label');
+                    const valueEl = row.querySelector('.custom-field-value');
+                    const k = labelEl ? labelEl.value.trim() : '';
+                    const v = valueEl ? valueEl.value : '';
+                    if (!k) continue;
+                    fields.push({
+                        fieldKind: 'custom',
+                        key: k,
+                        value: v,
+                        sortOrder: customSort,
+                    });
+                    customSort += 1;
+                }
+
+                // Phase G follow-up: normalize tags on save. Trim, lowercase,
+                // drop empties, dedupe via Set, then re-serialize. Collapses
+                // 'Work' / 'WORK' / 'work' into a single canonical 'work' tag
+                // both in the filter and in storage. Existing entries are NOT
+                // migrated — only tags written from this point forward
+                // benefit. (Re-saving an old entry will normalize its tags.)
+                const rawTags = document.getElementById('field-tags').value;
+                const normalizedTags = Array.from(new Set(
+                    rawTags
+                        .split(',')
+                        .map(t => t.trim().toLowerCase())
+                        .filter(Boolean)
+                )).join(', ');
+
+                return {
+                    name: document.getElementById('field-name').value,
+                    tags: normalizedTags,
+                    fields: fields,
+                };
+            }
+
+            async function onDelete(id, name) {
+                if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+                try {
+                    status.textContent = 'Deleting…';
+                    await deleteEntry(id);
+                    await refresh();
+                } catch (err) {
+                    status.textContent = 'Delete failed. Try reloading.';
+                }
+            }
+        }
+    </script>
+}

@@ -1,0 +1,18 @@
+# Dragon Vault — Nightly DB Backup Timer
+# REQ-055-L: Runs dragonvault-backup.service nightly at 02:57
+#
+# OnCalendar=*-*-* 02:57:00 avoids the top-of-minute storm (commonly used by cron jobs)
+# and ensures backups complete before any 3am maintenance windows.
+# Persistent=true: if the system was off at 02:57, the backup runs immediately
+# after the next boot (within the timer's AccuracySec window).
+[Unit]
+Description=Nightly Dragon Vault database backup (02:57 daily)
+Documentation=https://github.com/builtwithclaude/dragon-vault
+
+[Timer]
+OnCalendar=*-*-* 02:57:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

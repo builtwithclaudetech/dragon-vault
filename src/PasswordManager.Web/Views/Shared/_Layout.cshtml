@@ -1,0 +1,36 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    // Anti-forgery token rendered as a meta tag so the Phase C/F fetch wrapper
+    // (wwwroot/js/dragonvault.js) can read it and add it as the
+    // "RequestVerificationToken" header on every non-GET request. Header name matches
+    // services.AddAntiforgery(o => o.HeaderName = ...) in Program.cs.
+    var xsrfToken = Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="xsrf-token" content="@xsrfToken" />
+    @* REQ-053: all assets self-hosted. No runtime CDN. *@
+    <link rel="stylesheet" href="~/css/fonts.css" />
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="icon" type="image/png" sizes="32x32" href="~/icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="~/icons/favicon-16.png" />
+    <link rel="apple-touch-icon" href="~/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <meta name="theme-color" content="#000000" />
+    <title>@(ViewData["Title"] ?? "Dragon Vault") · Dragon Vault</title>
+</head>
+<body>
+    @RenderBody()
+    @await RenderSectionAsync("Scripts", required: false)
+
+    @* REQ-049: Service worker registration for PWA offline support *@
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        }
+    </script>
+</body>
+</html>

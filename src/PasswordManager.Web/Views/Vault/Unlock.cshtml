@@ -1,0 +1,134 @@
+@{
+    ViewData["Title"] = "Unlock your vault";
+    var userId = (string)(ViewData["UserId"] ?? string.Empty);
+}
+
+<div class="page-shell">
+    <div class="page-card">
+        <h1>Unlock your vault</h1>
+
+        <section id="passkey-unlock-section" class="passkey-section" hidden>
+            <p id="passkey-status" role="status" aria-live="polite">Unlock with your passkey…</p>
+            <button id="passkey-unlock-button" class="btn-primary" type="button">Unlock with passkey</button>
+        </section>
+
+        <div id="password-divider" class="passkey-divider" hidden>
+            <span>or use your master password</span>
+        </div>
+
+        <form id="unlock-form" data-user-id="@userId">
+            <label for="password">Master password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+            <button id="submit" class="btn-primary" type="submit">Unlock</button>
+            <p id="unlock-status" role="status"></p>
+            <a href="/Account/Recover" class="btn-tertiary">Forgot your master password?</a>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script type="module">
+        import { unlockWithMaster, getJson } from '/js/crypto.js';
+        import { unlockWithPasskey, listCredentials } from '/js/webauthn.js';
+        import { initSessionManagement, broadcastUnlock } from '/js/session-lock.js';
+
+        initSessionManagement({ skipRedirectOnLock: true });
+
+        const form = document.getElementById('unlock-form');
+        const password = document.getElementById('password');
+        const submit = document.getElementById('submit');
+        const status = document.getElementById('unlock-status');
+
+        const passkeySection = document.getElementById('passkey-unlock-section');
+        const passkeyButton = document.getElementById('passkey-unlock-button');
+        const passkeyStatus = document.getElementById('passkey-status');
+        const passwordDivider = document.getElementById('password-divider');
+
+        function b64ToBytes(b64) {
+            const s = atob(b64);
+            const out = new Uint8Array(s.length);
+            for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+            return out;
+        }
+
+        let kdfInfo = null;
+        async function ensureKdfInfo() {
+            if (kdfInfo) return kdfInfo;
+            kdfInfo = await getJson('/api/account/kdf-info');
+            return kdfInfo;
+        }
+
+        async function tryPasskeyUnlock() {
+            passkeyStatus.textContent = 'Touch your passkey to unlock…';
+            try {
+                const ok = await unlockWithPasskey({ userId: form.dataset.userId });
+                if (!ok) {
+                    passkeyStatus.textContent = 'Passkey unlock failed.';
+                    return false;
+                }
+                passkeyStatus.textContent = 'Unlocked. Loading vault…';
+                broadcastUnlock();
+                window.location.href = '/Vault/Entries';
+                return true;
+            } catch (err) {
+                console.error(err);
+                passkeyStatus.textContent = 'Passkey unlock failed: ' + (err && err.message ? err.message : err);
+                return false;
+            }
+        }
+
+        // Check for passkeys and auto-launch if available.
+        (async () => {
+            try {
+                const creds = await listCredentials();
+                if (Array.isArray(creds) && creds.length > 0) {
+                    passkeySection.hidden = false;
+                    passwordDivider.hidden = false;
+                    passkeyButton.hidden = true; // hide button, auto-launch instead
+                    await tryPasskeyUnlock();
+                }
+            } catch (_) { /* passkey unavailable — fall through to password */ }
+        })();
+
+        passkeyButton.addEventListener('click', () => tryPasskeyUnlock());
+
+        form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            submit.disabled = true;
+            status.textContent = 'Deriving key…';
+            try {
+                const info = await ensureKdfInfo();
+                const result = await unlockWithMaster({
+                    userId: form.dataset.userId,
+                    masterPassword: password.value,
+                    kdfSalt: b64ToBytes(info.kdfSalt),
+                    kdfIterations: info.kdfIterations,
+                    kdfMemoryKb: info.kdfMemoryKb,
+                    kdfParallelism: info.kdfParallelism,
+                    kdfOutputBytes: info.kdfOutputBytes,
+                    verifierCiphertext: b64ToBytes(info.verifierCiphertext),
+                    verifierIv: b64ToBytes(info.verifierIv),
+                    verifierAuthTag: b64ToBytes(info.verifierAuthTag),
+                });
+                if (!result.ok) {
+                    status.textContent = 'Incorrect master password. (' + (result.reason || 'unknown') + ')';
+                    submit.disabled = false;
+                    password.focus();
+                    password.select();
+                    return;
+                }
+                status.textContent = 'Unlocked. Loading vault…';
+                sessionStorage.setItem('dv-unlock-key', JSON.stringify({
+                    rawKeyB64: btoa(String.fromCharCode(...result.rawKeyBytes)),
+                    userId: form.dataset.userId,
+                }));
+                broadcastUnlock();
+                window.location.href = '/Vault/Entries';
+            } catch (err) {
+                console.error(err);
+                status.textContent = 'Unlock failed: ' + (err && err.message ? err.message : err);
+                submit.disabled = false;
+            }
+        });
+    </script>
+}

@@ -1,0 +1,145 @@
+@{
+    ViewData["Title"] = "Recover your vault";
+    var userId = (string)(ViewData["UserId"] ?? string.Empty);
+}
+
+@*
+    Phase C recovery surface. Browser receives RecoverySalt + wrapped key from
+    /api/account/recovery-info, derives the recovery wrapping key, unwraps the
+    encryption key, then prompts for a NEW master password and POSTs the rewrapped
+    material to /api/account/rotate-master.
+
+    Vault entry ciphertext is untouched — only the *wrap of the encryption key* changes.
+*@
+
+<div class="form-page">
+    <h1>Recover your vault</h1>
+
+    <p>Enter your 32-character recovery code and choose a new master password.</p>
+
+    <form id="recover-form" data-user-id="@userId">
+        <fieldset>
+            <legend>Recovery code</legend>
+            <label for="recovery-code">Recovery code</label>
+            <input id="recovery-code" name="recovery-code" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required />
+        </fieldset>
+
+        <fieldset>
+            <legend>New master password</legend>
+            <label for="password">New master password (≥ 12 characters)</label>
+            <input id="password" name="password" type="password" autocomplete="new-password" minlength="12" required />
+            <div id="strength-meter" aria-live="polite">
+                <div class="strength-meter-bar">
+                    <div id="strength-bar" style="height:6px;width:0;background:var(--color-hairline);border-radius:var(--r-pill);transition:width 0.2s,background 0.2s;"></div>
+                </div>
+                <p id="strength-text" class="strength-text"></p>
+            </div>
+
+            <label for="password-confirm">Confirm new master password</label>
+            <input id="password-confirm" name="password-confirm" type="password" autocomplete="new-password" minlength="12" required />
+            <p id="password-mismatch" class="validation-message" role="status" style="display:none;">The two passwords do not match.</p>
+        </fieldset>
+
+        <button id="submit" class="btn-primary" type="button" disabled>Recover</button>
+        <p id="recover-status" class="form-status" role="status"></p>
+    </form>
+</div>
+
+@section Scripts {
+    <script src="/js/vendor/zxcvbn.js"></script>
+    <script type="module">
+        import { recoverAndRotate, getJson, postJson } from '/js/crypto.js';
+
+        const form = document.getElementById('recover-form');
+        const recoveryCode = document.getElementById('recovery-code');
+        const password = document.getElementById('password');
+        const passwordConfirm = document.getElementById('password-confirm');
+        const submit = document.getElementById('submit');
+        const passwordMismatch = document.getElementById('password-mismatch');
+        const strengthBar = document.getElementById('strength-bar');
+        const strengthText = document.getElementById('strength-text');
+        const status = document.getElementById('recover-status');
+
+        function b64ToBytes(b64) {
+            const s = atob(b64);
+            const out = new Uint8Array(s.length);
+            for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+            return out;
+        }
+
+        const STRENGTH_COLORS = ['#c33', '#e07a18', '#d4b80b', '#62b500', '#1a8c3a'];
+        const STRENGTH_LABELS = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong'];
+
+        function updateStrength() {
+            const v = password.value;
+            if (!v) {
+                strengthBar.style.width = '0';
+                strengthBar.style.background = '#ccc';
+                strengthText.textContent = '';
+                return;
+            }
+            const z = window.zxcvbn ? window.zxcvbn(v) : { score: 0, feedback: { warning: '', suggestions: [] } };
+            strengthBar.style.width = ((z.score + 1) * 20) + '%';
+            strengthBar.style.background = STRENGTH_COLORS[z.score];
+            const fb = z.feedback || {};
+            const note = fb.warning || (fb.suggestions || []).join(' ');
+            strengthText.textContent = STRENGTH_LABELS[z.score] + (note ? ' — ' + note : '');
+        }
+
+        function validate() {
+            const ok = recoveryCode.value.length === 32
+                && password.value.length >= 12
+                && password.value === passwordConfirm.value;
+            const mismatch = passwordConfirm.value.length > 0 && password.value !== passwordConfirm.value;
+            passwordMismatch.style.display = mismatch ? 'block' : 'none';
+            submit.disabled = !ok;
+        }
+
+        recoveryCode.addEventListener('input', validate);
+        password.addEventListener('input', () => { updateStrength(); validate(); });
+        passwordConfirm.addEventListener('input', validate);
+
+        submit.addEventListener('click', async () => {
+            if (submit.disabled) return;
+            submit.disabled = true;
+            status.textContent = 'Loading recovery info…';
+            try {
+                const info = await getJson('/api/account/recovery-info');
+                status.textContent = 'Deriving keys (this can take several seconds)…';
+                const payload = await recoverAndRotate({
+                    userId: form.dataset.userId,
+                    recoveryCode: recoveryCode.value,
+                    newMasterPassword: password.value,
+                    recoverySalt: b64ToBytes(info.recoverySalt),
+                    kdfIterations: info.kdfIterations,
+                    kdfMemoryKb: info.kdfMemoryKb,
+                    kdfParallelism: info.kdfParallelism,
+                    kdfOutputBytes: info.kdfOutputBytes,
+                    recoveryWrappedKey: b64ToBytes(info.recoveryWrappedKey),
+                    recoveryWrappedKeyIv: b64ToBytes(info.recoveryWrappedKeyIv),
+                    recoveryWrappedKeyAuthTag: b64ToBytes(info.recoveryWrappedKeyAuthTag),
+                });
+                if (payload === null) {
+                    status.textContent = 'Invalid recovery code.';
+                    submit.disabled = false;
+                    return;
+                }
+                status.textContent = 'Saving new master password…';
+                const res = await postJson('/api/account/rotate-master', payload);
+                if (!res.ok) {
+                    status.textContent = 'Save failed. Please try again.';
+                    submit.disabled = false;
+                    return;
+                }
+                status.textContent = 'Recovery complete. Redirecting…';
+                window.location.href = '/Vault/Unlock';
+            } catch (err) {
+                console.error(err);
+                status.textContent = 'Recovery failed: ' + (err && err.message ? err.message : err);
+                submit.disabled = false;
+            }
+        });
+
+        validate();
+    </script>
+}

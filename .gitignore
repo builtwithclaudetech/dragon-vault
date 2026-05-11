@@ -1,0 +1,77 @@
+## Node.js
+node_modules/
+
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+.vscode/
+*.sln.docstates
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Build output
+publish/
+[Pp]ublished/
+out/
+
+## Test results
+TestResults/
+[Cc]overage/
+*.coverage
+*.coveragexml
+
+## Tooling caches
+*.tmp
+*.log
+*.nupkg
+.nuget/
+packages/
+!packages/build/
+
+## Secrets — NEVER commit
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Local.json
+appsettings.*.user.json
+secrets.json
+*.env
+.env
+.env.*
+
+## DataProtection keys (must NEVER leave the host)
+keys/
+DataProtection-Keys/
+
+## Local SQL artifacts
+*.mdf
+*.ldf
+
+## OS / editor noise
+Thumbs.db
+.DS_Store
+desktop.ini
+*.swp
+*~
+
+## Node / PWA tooling (in case we add any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.bak
+.parcel-cache/
+dist/
+
+## Frontend build artifacts
+wwwroot/dist/
+wwwroot/lib/
+
+## Misc
+*.bak
+*.orig
+*.rej

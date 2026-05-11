@@ -1,0 +1,1542 @@
+/* =====================================================================
+   Dragon Vault — Figma DESIGN.md adapted for a product (app) surface
+   =====================================================================
+   Architecture: @layer reset, tokens, base, components, utilities
+   Fonts self-hosted, loaded via css/fonts.css (Inter + JetBrains Mono).
+   ===================================================================== */
+
+@layer reset, tokens, base, components, utilities;
+
+/* =====================================================================
+   TOKENS — Figma DESIGN.md tokens adapted for Dragon Vault
+   ===================================================================== */
+@layer tokens {
+  :root {
+    /* ---- Typography (Inter = figmaSans; JetBrains Mono = figmaMono) ---- */
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+    /* Weight ramp */
+    --fw-body:       320;
+    --fw-body-sm:    330;
+    --fw-subhead:    340;
+    --fw-link:       480;
+    --fw-button:     480;
+    --fw-headline:   540;
+    --fw-card-title: 700;
+
+    /* ---- Spacing (8px base) ---- */
+    --sp-hair: 1px;
+    --sp-xxs:  4px;
+    --sp-xs:   8px;
+    --sp-sm:   12px;
+    --sp-md:   16px;
+    --sp-lg:   24px;
+    --sp-xl:   32px;
+    --sp-xxl:  48px;
+    --sp-section: 96px;
+
+    /* ---- Radius ---- */
+    --r-xs:   2px;
+    --r-sm:   6px;
+    --r-md:   8px;
+    --r-lg:   24px;
+    --r-xl:   32px;
+    --r-pill: 50px;
+    --r-full: 9999px;
+
+    /* ---- Light mode ---- */
+    --color-primary:         #000000;
+    --color-on-primary:      #ffffff;
+    --color-ink:             #000000;
+    --color-canvas:          #ffffff;
+    --color-surface-soft:    #f7f7f5;
+    --color-hairline:        #e6e6e6;
+    --color-hairline-soft:   #f1f1f1;
+
+    --color-block-lime:   #dceeb1;
+    --color-block-lilac:  #c5b0f4;
+    --color-block-pink:   #efd4d4;
+    --color-block-navy:   #1f1d3d;
+
+    --color-accent-magenta:  #ff3d8b;
+    --color-success:         #1ea64a;
+    --color-danger:          #d41b56;
+    --color-danger-fg:       #ffffff;
+    --color-overlay-scrim:   rgba(0, 0, 0, 0.6);
+    --color-focus:           #000000;
+
+    /* ---- Shadows (shadow-light philosophy) ---- */
+    --shadow-hairline: 0 0 0 1px var(--color-hairline);
+    --shadow-float:    0 4px 16px rgba(0,0,0,0.06);
+    --shadow-modal:    0 16px 48px rgba(0,0,0,0.15);
+
+    /* ---- Transitions ---- */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur-micro: 150ms;
+    --dur-fast:  200ms;
+    --dur-modal: 300ms;
+
+    /* ---- Safe-area insets for notched/rounded displays (REQ-052) ---- */
+    --safe-inset-top: env(safe-area-inset-top, 0px);
+    --safe-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-inset-left: env(safe-area-inset-left, 0px);
+    --safe-inset-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* ---- Dark mode (derived) ---- */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-primary:         #ffffff;
+      --color-on-primary:      #000000;
+      --color-ink:             #f0f0ee;
+      --color-canvas:          #131314;
+      --color-surface-soft:    #1e1e1f;
+      --color-hairline:        #333334;
+      --color-hairline-soft:   #2a2a2b;
+
+      --color-block-lime:   #3a4028;
+      --color-block-lilac:  #3a3050;
+      --color-block-pink:   #3d2828;
+      --color-block-navy:   #0d0c1e;
+
+      --color-danger:          #ff5c8a;
+      --color-danger-fg:       #000000;
+      --color-focus:           #ffffff;
+      --color-overlay-scrim:   rgba(0, 0, 0, 0.75);
+      --color-success:         #2fba5c;
+
+      --shadow-float:    0 4px 16px rgba(0,0,0,0.25);
+      --shadow-modal:    0 16px 48px rgba(0,0,0,0.4);
+    }
+  }
+}
+
+/* =====================================================================
+   RESET
+   ===================================================================== */
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  button { font: inherit; cursor: pointer; }
+  input, textarea, select { font: inherit; }
+  h1, h2, h3, h4, h5, h6 { margin: 0; }
+  p, figure, blockquote, dl, dd, dt { margin: 0; }
+  fieldset { margin: 0; padding: 0; border: none; }
+  legend { padding: 0; }
+  ul, ol { margin: 0; padding: 0; list-style: none; }
+  table { border-collapse: collapse; border-spacing: 0; }
+}
+
+/* =====================================================================
+   BASE
+   ===================================================================== */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1.45;
+    letter-spacing: -0.26px;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "kern" 1;
+    /* Notched-device safe area + prevent horizontal scroll (REQ-052) */
+    padding-top: var(--safe-inset-top);
+    padding-bottom: var(--safe-inset-bottom);
+    padding-left: var(--safe-inset-left);
+    padding-right: var(--safe-inset-right);
+    overflow-x: hidden;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: var(--r-xs);
+  }
+
+  ::placeholder {
+    color: var(--color-hairline);
+    opacity: 1;
+  }
+
+  a {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  a:hover { opacity: 0.75; }
+}
+
+/* =====================================================================
+   UTILITIES
+   ===================================================================== */
+@layer utilities {
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Buttons
+   ===================================================================== */
+@layer components {
+  /* ---- Pill button base (secondary/default) ---- */
+  .btn,
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-xs);
+    padding: 8px 18px 10px;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-button);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-pill);
+    text-decoration: none;
+    transition: background var(--dur-micro) var(--ease-out),
+                transform var(--dur-micro) var(--ease-out);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .btn:hover,
+  .btn-secondary:hover { background: var(--color-surface-soft); }
+  .btn:active,
+  .btn-secondary:active { transform: scale(0.975); }
+
+  /* ---- Primary pill ---- */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-xs);
+    padding: 10px 20px;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-button);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    border: none;
+    border-radius: var(--r-pill);
+    text-decoration: none;
+    transition: transform var(--dur-micro) var(--ease-out),
+                opacity var(--dur-micro) var(--ease-out);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .btn-primary:hover  { opacity: 0.92; background: var(--color-primary); color: var(--color-on-primary); }
+  .btn-primary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .btn-primary:active { transform: scale(0.975); }
+
+  /* ---- Danger pill ---- */
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-xs);
+    padding: 10px 20px;
+    background: var(--color-danger);
+    color: var(--color-danger-fg);
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-button);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    border: none;
+    border-radius: var(--r-pill);
+    transition: opacity var(--dur-micro) var(--ease-out),
+                transform var(--dur-micro) var(--ease-out);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .btn-danger:hover  { opacity: 0.85; }
+  .btn-danger:active { transform: scale(0.975); }
+
+  /* ---- Tertiary text button (link-style hit target) ---- */
+  .btn-tertiary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xxs);
+    padding: var(--sp-xs) var(--sp-sm);
+    background: transparent;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-link);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    border: none;
+    border-radius: var(--r-full);
+    text-decoration: none;
+    transition: opacity var(--dur-micro) var(--ease-out);
+    cursor: pointer;
+  }
+  .btn-tertiary:hover { opacity: 0.7; }
+
+  /* ---- Circular icon button ---- */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px; height: 40px;
+    padding: 0;
+    background: var(--color-surface-soft);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1;
+    border: none;
+    border-radius: var(--r-full);
+    transition: background var(--dur-micro) var(--ease-out),
+                transform var(--dur-micro) var(--ease-out);
+    cursor: pointer;
+  }
+  .btn-icon:hover  { background: var(--color-hairline); }
+  .btn-icon:active { transform: scale(0.94); }
+
+  /* ---- Small button variant ---- */
+  .btn-sm {
+    font-size: 16px;
+    padding: 6px 14px;
+    min-height: 36px;
+  }
+  .btn-primary.btn-sm { padding: 8px 16px; }
+
+  /* ---- Clipboard-active state (set by vault.js) ---- */
+  button[data-clipboard-active] {
+    background: color-mix(in oklch, var(--color-primary) 15%, var(--color-canvas));
+    border-color: var(--color-primary);
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Layout: Shell + Page
+   ===================================================================== */
+@layer components {
+  .vault-shell {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--sp-xxl) var(--sp-xl);
+  }
+
+  /* ---- Centered page card (login, unlock) ---- */
+  .page-shell {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: var(--sp-xxl) var(--sp-lg);
+  }
+
+  .page-card {
+    padding: var(--sp-xxl) var(--sp-xl);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-lg);
+    text-align: center;
+  }
+  .page-card h1 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    margin-bottom: var(--sp-lg);
+  }
+  .page-card form {
+    display: grid;
+    gap: var(--sp-md);
+    text-align: left;
+  }
+  .page-card label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    margin-bottom: var(--sp-xxs);
+  }
+  .page-card input {
+    width: 100%;
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+    box-sizing: border-box;
+  }
+  .page-card input:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-color: transparent;
+  }
+  .page-card .btn-primary,
+  .page-card .btn-danger {
+    width: 100%;
+    margin-top: var(--sp-xs);
+  }
+  .page-card .btn-tertiary {
+    font-size: 16px;
+    justify-content: center;
+    width: 100%;
+    padding: var(--sp-sm);
+  }
+
+  .page-card-alert {
+    padding: var(--sp-sm) var(--sp-md);
+    background: var(--color-block-pink);
+    border-radius: var(--r-md);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    margin-bottom: var(--sp-lg);
+    text-align: left;
+    color: var(--color-ink);
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Vault header (lilac block)
+   ===================================================================== */
+@layer components {
+  .vault-header-block {
+    background: var(--color-block-lilac);
+    border-radius: var(--r-lg);
+    padding: var(--sp-xl) var(--sp-xxl);
+    margin-bottom: var(--sp-xxl);
+  }
+
+  .vault-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-sm);
+  }
+  .vault-header h1 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    margin-right: auto;
+  }
+  .vault-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-xs);
+  }
+
+  .vault-header-block .vault-header .btn-secondary,
+  .vault-header-block .vault-header .btn-primary {
+    font-size: 16px;
+    padding: 6px 16px;
+    min-height: 36px;
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Toolbar
+   ===================================================================== */
+@layer components {
+  .passkey-prompt {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+    padding: 10px 16px;
+    margin-bottom: var(--sp-lg);
+    background: var(--color-surface-soft);
+    border-radius: var(--r-md);
+    font-size: 15px;
+  }
+  .passkey-prompt span { flex: 1; }
+  .passkey-prompt .btn-icon {
+    width: 32px; height: 32px;
+    font-size: 18px;
+    background: transparent;
+  }
+
+  .vault-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sp-md);
+    margin-bottom: var(--sp-lg);
+  }
+  @media (min-width: 36rem) {
+    .vault-toolbar {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+  }
+
+  .vault-search {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-xs);
+  }
+  .vault-search input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+  }
+  .vault-search input::placeholder { color: var(--color-hairline); }
+  .vault-search input:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-color: transparent;
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Tag bar
+   ===================================================================== */
+@layer components {
+  .vault-tagbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    align-items: center;
+    padding: var(--sp-sm) 0;
+    margin-bottom: var(--sp-md);
+  }
+  .vault-tagbar:empty { display: none; }
+
+  .tag-pill {
+    padding: 4px 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-pill);
+    transition: background var(--dur-micro) var(--ease-out),
+                color var(--dur-micro) var(--ease-out);
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .tag-pill:hover { background: var(--color-surface-soft); }
+  .tag-pill[aria-pressed="true"] {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: transparent;
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Entry cards
+   ===================================================================== */
+@layer components {
+  #entry-list {
+    display: grid;
+    gap: var(--sp-md);
+  }
+
+  .vault-entry {
+    padding: var(--sp-lg);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-lg);
+  }
+
+  .vault-entry h3 {
+    font-family: var(--font-sans);
+    font-size: 24px;
+    font-weight: var(--fw-card-title);
+    line-height: 1.45;
+    letter-spacing: 0;
+    margin-bottom: var(--sp-xs);
+  }
+
+  .vault-entry-meta {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    line-height: 1.45;
+    letter-spacing: -0.14px;
+    margin-bottom: var(--sp-xxs);
+  }
+  .vault-entry-meta strong {
+    font-weight: var(--fw-link);
+  }
+
+  .vault-entry-password {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xs);
+    font-family: var(--font-mono);
+    font-size: 16px;
+  }
+
+  .vault-entry-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xxs);
+    margin: var(--sp-sm) 0 0 0;
+    padding: 0;
+  }
+  .vault-entry-tag {
+    padding: 2px 10px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    background: var(--color-surface-soft);
+    color: var(--color-ink);
+    border-radius: var(--r-sm);
+  }
+
+  .vault-entry-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    margin-top: var(--sp-md);
+    padding-top: var(--sp-md);
+    border-top: 1px solid var(--color-hairline-soft);
+  }
+
+  .vault-empty {
+    padding: var(--sp-xxl);
+    text-align: center;
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-body-sm);
+  }
+
+  .vault-status {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    line-height: 1.45;
+    margin-bottom: var(--sp-md);
+  }
+
+  /* ---- Breach result status banners (Phase J, REQ-047) ---- */
+  .breach-result {
+    font-size: 14px;
+    font-weight: var(--fw-body-sm);
+    line-height: 1.45;
+    padding: var(--sp-sm) var(--sp-md);
+    border-radius: var(--r-md);
+  }
+  .breach-result.is-warning {
+    background: var(--color-block-pink);
+    color: var(--color-ink);
+  }
+  .breach-result.is-clean {
+    background: var(--color-block-lime);
+    color: var(--color-ink);
+  }
+  .breach-result.is-error {
+    background: var(--color-surface-soft);
+    color: var(--color-ink);
+  }
+
+  /* Entry row password wrapper — contains the password line + breach result */
+  .vault-entry-password-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-xxs);
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — TOTP block (entry row)
+   ===================================================================== */
+@layer components {
+  .vault-entry-totp {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-xs);
+    margin-top: var(--sp-sm);
+    padding: var(--sp-sm) var(--sp-md);
+    background: var(--color-surface-soft);
+    border-radius: var(--r-md);
+  }
+
+  .vault-entry-totp-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+  }
+
+  .vault-totp-code {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.05em;
+  }
+
+  .vault-totp-ring {
+    width: 24px; height: 24px;
+    flex: 0 0 auto;
+    transform: rotate(-90deg);
+  }
+  .vault-totp-ring-track {
+    fill: none;
+    stroke: var(--color-hairline);
+    stroke-width: 4;
+  }
+  .vault-totp-ring-progress {
+    fill: none;
+    stroke: var(--color-primary);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 80ms linear;
+  }
+
+  .vault-totp-countdown {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    min-width: 2ch;
+  }
+
+  /* TOTP copy button uses btn btn-icon in JS; override to a small pill */
+  .vault-totp-copy.btn-icon {
+    width: auto;
+    height: auto;
+    padding: 4px 12px;
+    font-size: 13px;
+    font-weight: var(--fw-link);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-pill);
+  }
+  .vault-totp-copy.btn-icon:hover { background: var(--color-surface-soft); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vault-totp-ring { display: none; }
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Custom fields (entry row)
+   ===================================================================== */
+@layer components {
+  .vault-entry-customs {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--sp-xxs) var(--sp-md);
+    margin: var(--sp-sm) 0 0 0;
+    font-size: 16px;
+  }
+  .vault-entry-custom-key {
+    font-weight: var(--fw-link);
+  }
+  .vault-entry-custom-value {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xs);
+    font-family: var(--font-mono);
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Modal / Dialog
+   ===================================================================== */
+@layer components {
+  dialog {
+    width: min(36rem, 100vw - 2rem);
+    padding: var(--sp-xl);
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-modal);
+  }
+  dialog::backdrop {
+    background: var(--color-overlay-scrim);
+  }
+
+  dialog h2 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    margin-bottom: var(--sp-lg);
+  }
+
+  dialog form {
+    display: grid;
+    gap: var(--sp-md);
+  }
+
+  dialog label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    margin-bottom: var(--sp-xxs);
+  }
+
+  dialog input,
+  dialog textarea {
+    width: 100%;
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+    box-sizing: border-box;
+  }
+  dialog input:focus-visible,
+  dialog textarea:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-color: transparent;
+  }
+  dialog textarea { resize: vertical; }
+
+  .password-field-row {
+    display: flex;
+    gap: var(--sp-xxs, 4px);
+    align-items: center;
+  }
+  .password-field-row input { flex: 1; min-width: 0; }
+
+  .btn-password-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    background: var(--color-surface-soft);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: var(--fw-body);
+    line-height: 1.2;
+    border: none;
+    border-radius: var(--r-pill);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--dur-micro) var(--ease-out);
+  }
+  .btn-password-action:hover { background: var(--color-hairline); }
+
+  .btn-password-hibp {
+    font-size: 12px;
+  }
+
+  /* Keep old field-with-toggle for backward compat */
+  .field-with-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    align-items: stretch;
+  }
+  .field-with-toggle input { flex: 1; min-width: 0; }
+
+  .dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    margin-top: var(--sp-md);
+    padding-top: var(--sp-md);
+    border-top: 1px solid var(--color-hairline-soft);
+  }
+  .dialog-actions-spacer { flex: 1; }
+}
+
+/* =====================================================================
+   COMPONENTS — Modal sub-sections (TOTP + custom fields)
+   ===================================================================== */
+@layer components {
+  /* Totp fieldset inside modal */
+  .totp-section {
+    margin: 0;
+    padding: var(--sp-md);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+    display: grid;
+    gap: var(--sp-sm);
+  }
+  .totp-section legend {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    padding-inline: var(--sp-xs);
+  }
+  .totp-hint {
+    font-family: var(--font-sans);
+    font-weight: var(--fw-body);
+    font-size: 14px;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  .totp-status {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    min-height: 1.25rem;
+  }
+  .totp-status[data-totp-state="ok"] { font-weight: 500; }
+  .totp-status[data-totp-state="error"] {
+    color: var(--color-danger);
+    font-family: var(--font-sans);
+  }
+
+  /* Custom fields fieldset inside modal */
+  .custom-fields {
+    margin: 0;
+    padding: var(--sp-md);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+    display: grid;
+    gap: var(--sp-sm);
+  }
+  .custom-fields legend {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    padding-inline: var(--sp-xs);
+  }
+  .custom-field-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sp-sm);
+  }
+  @media (min-width: 36rem) {
+    .custom-field-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+      align-items: center;
+    }
+  }
+  .custom-field-remove.btn-icon {
+    width: 36px; height: 36px;
+    font-size: 18px;
+    justify-self: end;
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Generator dialog
+   ===================================================================== */
+@layer components {
+  #generator-modal {
+    width: min(32rem, 100vw - 2rem);
+    padding: var(--sp-xl);
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-modal);
+  }
+  #generator-modal::backdrop {
+    background: var(--color-overlay-scrim);
+  }
+
+  #generator-modal h2 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    margin-bottom: var(--sp-lg);
+  }
+
+  .generator-form {
+    display: grid;
+    gap: var(--sp-md);
+  }
+
+  .generator-form label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    margin-bottom: var(--sp-xxs);
+  }
+
+  .generator-length label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-sm);
+  }
+  .generator-length output {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .generator-length input[type="range"] {
+    width: 100%;
+    accent-color: var(--color-primary);
+  }
+
+  .generator-classes {
+    margin: 0;
+    padding: var(--sp-sm) var(--sp-md);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+    display: grid;
+    gap: var(--sp-xxs);
+  }
+  .generator-classes legend {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    padding-inline: var(--sp-xs);
+  }
+  .generator-classes label {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-xs);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--color-ink);
+    margin-bottom: 0;
+  }
+  .generator-classes input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--color-primary);
+  }
+
+  .generator-output {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 500;
+    word-break: break-all;
+  }
+
+  .generator-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    align-items: center;
+    margin-top: var(--sp-sm);
+    padding-top: var(--sp-sm);
+    border-top: 1px solid var(--color-hairline-soft);
+  }
+  .generator-actions-spacer { flex: 1; }
+}
+
+/* =====================================================================
+   COMPONENTS — Form pages (Setup, Recover)
+   ===================================================================== */
+@layer components {
+  .form-page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: var(--sp-xxl) var(--sp-lg);
+  }
+
+  .form-page h1 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    margin-bottom: var(--sp-md);
+  }
+
+  .form-page > p {
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    line-height: 1.45;
+    margin-bottom: var(--sp-lg);
+  }
+
+  .form-page fieldset {
+    margin: 0;
+    padding: var(--sp-lg);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+    display: grid;
+    gap: var(--sp-md);
+  }
+  .form-page fieldset + fieldset {
+    margin-top: var(--sp-md);
+  }
+  .form-page fieldset legend {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    padding-inline: var(--sp-xs);
+  }
+
+  .form-page label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    margin-bottom: var(--sp-xxs);
+  }
+
+  .form-page input[type="text"],
+  .form-page input[type="password"],
+  .form-page input[type="url"],
+  .form-page input[type="email"],
+  .form-page textarea {
+    width: 100%;
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+    box-sizing: border-box;
+  }
+  .form-page input:focus-visible,
+  .form-page textarea:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-color: transparent;
+  }
+
+  .form-page .btn-primary,
+  .form-page .btn-danger {
+    width: 100%;
+    margin-top: var(--sp-sm);
+  }
+
+  /* Strength meter */
+  .strength-meter {
+    margin: 0;
+  }
+  .strength-meter-bar {
+    height: 6px;
+    background: var(--color-hairline);
+    border-radius: var(--r-pill);
+    overflow: hidden;
+  }
+  #strength-bar {
+    height: 6px;
+    width: 0;
+    background: var(--color-hairline);
+    border-radius: var(--r-pill);
+    transition: width 0.2s ease, background 0.2s ease;
+  }
+  .strength-text {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: var(--fw-body-sm);
+    margin-top: var(--sp-xxs);
+  }
+
+  /* Validation messages */
+  .validation-message {
+    font-size: 14px;
+    font-weight: var(--fw-body-sm);
+    color: var(--color-danger);
+    margin: var(--sp-xxs) 0 0 0;
+  }
+
+  .validation-success {
+    font-size: 14px;
+    font-weight: var(--fw-body-sm);
+    color: var(--color-success, #1a8c3a);
+    margin: var(--sp-xxs) 0 0 0;
+  }
+
+  .input-valid {
+    border-color: #1a8c3a !important;
+    box-shadow: 0 0 0 1px #1a8c3a;
+  }
+
+  .input-invalid {
+    border-color: #c33 !important;
+    box-shadow: 0 0 0 1px #c33;
+  }
+
+  /* Status text */
+  .form-status {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    margin-top: var(--sp-sm);
+  }
+
+  /* Recovery code display */
+  .recovery-code-display {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    padding: var(--sp-sm) var(--sp-md);
+    background: var(--color-surface-soft);
+    border-radius: var(--r-md);
+    user-select: all;
+    word-break: break-all;
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Settings / Passkeys table
+   ===================================================================== */
+@layer components {
+  /* Settings page wrapper */
+  .settings-page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: var(--sp-xxl) var(--sp-lg);
+  }
+
+  .settings-page h1 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    margin-bottom: var(--sp-md);
+  }
+
+  .settings-page > p {
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    line-height: 1.45;
+    margin-bottom: var(--sp-lg);
+    max-width: 640px;
+  }
+
+  .settings-page section h2 {
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-link);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    margin-bottom: var(--sp-md);
+  }
+
+  .data-table {
+    width: 100%;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+    overflow: hidden;
+  }
+  .data-table th {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    text-align: left;
+    padding: var(--sp-sm) var(--sp-md);
+    background: var(--color-surface-soft);
+    border-bottom: 1px solid var(--color-hairline);
+  }
+  .data-table td {
+    padding: var(--sp-sm) var(--sp-md);
+    border-bottom: 1px solid var(--color-hairline-soft);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    line-height: 1.45;
+  }
+  .data-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .data-table .revoke-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: var(--fw-link);
+    background: transparent;
+    color: var(--color-danger);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--r-pill);
+    transition: background var(--dur-micro) var(--ease-out),
+                color var(--dur-micro) var(--ease-out);
+    cursor: pointer;
+  }
+  .data-table .revoke-btn:hover {
+    background: var(--color-danger);
+    color: var(--color-danger-fg);
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Passkey unlock section
+   ===================================================================== */
+@layer components {
+  .passkey-section {
+    margin-bottom: var(--sp-md);
+    text-align: center;
+  }
+  .passkey-section h2 {
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-link);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    margin-bottom: var(--sp-md);
+  }
+
+  .passkey-divider {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+    margin: var(--sp-lg) 0;
+    color: var(--color-ink-muted, #888);
+    font-size: 14px;
+  }
+  .passkey-divider::before,
+  .passkey-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-hairline-soft);
+  }
+}
+
+/* =====================================================================
+   RESPONSIVE
+   ===================================================================== */
+@layer components {
+  @media (max-width: 768px) {
+    .vault-shell {
+      padding: var(--sp-lg) var(--sp-md);
+    }
+    .vault-header-block {
+      border-radius: 0;
+      margin-left: calc(-1 * var(--sp-md));
+      margin-right: calc(-1 * var(--sp-md));
+      padding: var(--sp-lg);
+    }
+    .vault-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .vault-header h1 { margin-right: 0; }
+    .page-card {
+      padding: var(--sp-lg);
+    }
+    .form-page {
+      padding: var(--sp-lg) var(--sp-md);
+    }
+    .form-page fieldset {
+      padding: var(--sp-md);
+    }
+    .settings-page {
+      padding: var(--sp-lg) var(--sp-md);
+    }
+    .page-shell {
+      padding: var(--sp-lg) var(--sp-md);
+    }
+    dialog {
+      border-radius: var(--r-lg);
+      padding: var(--sp-lg);
+    }
+    .data-table {
+      font-size: 14px;
+    }
+    .data-table th,
+    .data-table td {
+      padding: var(--sp-xs) var(--sp-sm);
+    }
+  }
+
+  @media (max-width: 768px) and (pointer: coarse) {
+    /* Tablet+Mobile: color blocks full bleed, no rounded corners */
+    .vault-header-block {
+      border-radius: 0;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .btn, .btn-primary, .btn-danger, .btn-secondary {
+      font-size: 16px;
+      padding: 8px 16px;
+    }
+    .btn-sm {
+      font-size: 14px;
+      padding: 5px 12px;
+      min-height: 32px;
+    }
+    dialog h2 { font-size: 22px; }
+    .page-card h1 { font-size: 22px; }
+
+    /* 44x44 minimum touch targets for mobile (REQ-052) */
+    .btn-icon {
+      width: 44px;
+      height: 44px;
+    }
+    .custom-field-remove.btn-icon {
+      width: 44px;
+      height: 44px;
+    }
+    .vault-totp-copy.btn-icon {
+      min-height: 44px;
+    }
+    input, textarea, select {
+      min-height: 44px;
+    }
+    .tag-pill {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+  }
+
+  @media (max-width: 360px) {
+    /* 360px viewport: prevent horizontal overflow on all elements */
+    *, *::before, *::after { max-width: 100vw; box-sizing: border-box; }
+    body {
+      overflow-x: hidden;
+      width: 100%;
+    }
+    .vault-shell {
+      padding: var(--sp-lg) var(--sp-xs);
+    }
+    .page-shell {
+      padding: var(--sp-lg) var(--sp-xs);
+    }
+    .form-page {
+      padding: var(--sp-lg) var(--sp-xs);
+    }
+    .settings-page {
+      padding: var(--sp-lg) var(--sp-xs);
+    }
+    .vault-header-block {
+      border-radius: 0;
+      margin-left: calc(-1 * var(--sp-xs));
+      margin-right: calc(-1 * var(--sp-xs));
+      padding: var(--sp-md);
+      flex-wrap: wrap;
+    }
+    .vault-entry {
+      padding: var(--sp-md);
+      max-width: 100%;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    .vault-entry h3 {
+      font-size: 20px;
+      word-break: break-word;
+    }
+    .vault-entry-actions {
+      flex-wrap: wrap;
+    }
+    .vault-entry-actions .btn {
+      font-size: 13px;
+      padding: 4px 8px;
+    }
+    dialog {
+      width: calc(100vw - 8px);
+      max-width: calc(100vw - 8px);
+      padding: var(--sp-md);
+      border-radius: var(--r-md);
+    }
+    dialog input,
+    dialog textarea {
+      font-size: 16px;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .password-field-row {
+      flex-wrap: wrap;
+    }
+    .password-field-row input {
+      width: 100%;
+      flex-basis: 100%;
+    }
+    .btn-password-action {
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+    .field-with-toggle {
+      flex-direction: column;
+    }
+    .field-with-toggle input {
+      width: 100%;
+    }
+    .dialog-actions {
+      flex-direction: column;
+    }
+    .dialog-actions .btn-secondary,
+    .dialog-actions .btn-primary {
+      width: 100%;
+    }
+    .generator-actions {
+      flex-wrap: wrap;
+    }
+    .generator-actions .btn {
+      font-size: 15px;
+      padding: 6px 12px;
+    }
+    .generator-actions-spacer {
+      display: none;
+    }
+    .custom-field-row {
+      grid-template-columns: 1fr;
+    }
+    .vault-entry-totp {
+      flex-wrap: wrap;
+    }
+  }
+}
+
+/* =====================================================================
+   REDUCED MOTION
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

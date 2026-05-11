@@ -1,0 +1,39 @@
+# Dragon Vault — Nightly DB Backup Service (oneshot)
+# REQ-055-L: Runs backup-db.sh and logs to journald
+#
+# Dependency chain:
+#   docker.service  ->  dragonvault-backup.service  ->  dragonvault.service
+# The backup runs AFTER docker is up so SQL Server is reachable.
+[Unit]
+Description=Dragon Vault nightly database backup
+Documentation=https://github.com/builtwithclaudetech/dragon-vault
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/var/opt/dragonvault/backup-db.sh
+
+# Run as the vault user, not root
+User=YOUR-USERNAME
+Group=YOUR-USERNAME
+
+# Load SQL_PASSWORD and other env vars from a secure file
+# Create this file with: echo "SQL_PASSWORD=YourPass" | sudo tee /var/opt/dragonvault/.env > /dev/null
+# And: sudo chmod 600 /var/opt/dragonvault/.env
+EnvironmentFile=-/var/opt/dragonvault/.env
+
+# Security hardening
+CapabilityBoundingSet=
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/opt/dragonvault/backups
+
+# journald captures stdout — use journalctl to read logs
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

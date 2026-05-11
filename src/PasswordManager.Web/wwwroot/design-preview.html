@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Dragon Vault · Design Preview (Figma System)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,320;14..32,330;14..32,340;14..32,480;14..32,540;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* =====================================================================
+   DESIGN TOKENS — Figma DESIGN.md adapted for a product (app) surface
+   ===================================================================== */
+
+@layer reset, tokens, base, components, utilities;
+
+@layer tokens {
+  :root {
+    /* ---- Typography (Inter = figmaSans substitute; JetBrains Mono = figmaMono) ---- */
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+    /* Weight ramp matching Figma's fine-grained scale */
+    --fw-body:     320;
+    --fw-body-sm:  330;
+    --fw-subhead:  340;
+    --fw-link:     480;
+    --fw-button:   480;
+    --fw-headline: 540;
+    --fw-card-title: 700;
+
+    /* ---- Spacing (8px base, Figma scale) ---- */
+    --sp-hair: 1px;
+    --sp-xxs:  4px;
+    --sp-xs:   8px;
+    --sp-sm:   12px;
+    --sp-md:   16px;
+    --sp-lg:   24px;
+    --sp-xl:   32px;
+    --sp-xxl:  48px;
+    --sp-section: 96px;
+
+    /* ---- Radius (Figma scale) ---- */
+    --r-xs:   2px;
+    --r-sm:   6px;
+    --r-md:   8px;
+    --r-lg:   24px;
+    --r-xl:   32px;
+    --r-pill: 50px;
+    --r-full: 9999px;
+
+    /* ---- Light mode: Figma core palette ---- */
+    --color-primary:         #000000;
+    --color-on-primary:      #ffffff;
+    --color-ink:             #000000;
+    --color-canvas:          #ffffff;
+    --color-inverse-canvas:  #000000;
+    --color-inverse-ink:     #ffffff;
+    --color-surface-soft:    #f7f7f5;
+    --color-hairline:        #e6e6e6;
+    --color-hairline-soft:   #f1f1f1;
+
+    /* Pastel color blocks */
+    --color-block-lime:   #dceeb1;
+    --color-block-lilac:  #c5b0f4;
+    --color-block-cream:  #f4ecd6;
+    --color-block-mint:   #c8e6cd;
+    --color-block-pink:   #efd4d4;
+    --color-block-coral:  #f3c9b6;
+    --color-block-navy:   #1f1d3d;
+
+    /* Accent & semantic */
+    --color-accent-magenta:  #ff3d8b;
+    --color-success:         #1ea64a;
+    --color-overlay-scrim:   rgba(0, 0, 0, 0.6);
+
+    /* App-specific: danger action (maps magenta → destructive semantic) */
+    --color-danger:          #d41b56;
+    --color-danger-fg:       #ffffff;
+
+    /* Focus ring */
+    --color-focus:           #000000;
+
+    /* ---- Shadows (shadow-light philosophy) ---- */
+    --shadow-hairline: 0 0 0 1px var(--color-hairline);
+    --shadow-float:    0 4px 16px rgba(0,0,0,0.06);
+    --shadow-modal:    0 16px 48px rgba(0,0,0,0.15);
+
+    /* ---- Transitions ---- */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur-micro: 150ms;
+    --dur-fast:  200ms;
+    --dur-modal: 300ms;
+  }
+
+  /* ---- Dark mode (derived — Figma doesn't document dark tokens) ---- */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-primary:         #ffffff;
+      --color-on-primary:      #000000;
+      --color-ink:             #f0f0ee;
+      --color-canvas:          #131314;
+      --color-inverse-canvas:  #ffffff;
+      --color-inverse-ink:     #000000;
+      --color-surface-soft:    #1e1e1f;
+      --color-hairline:        #333334;
+      --color-hairline-soft:   #2a2a2b;
+
+      /* Pastel blocks — desaturated + darkened for dark mode */
+      --color-block-lime:   #3a4028;
+      --color-block-lilac:  #3a3050;
+      --color-block-cream:  #3d3828;
+      --color-block-mint:   #2a3d2e;
+      --color-block-pink:   #3d2828;
+      --color-block-coral:  #3d2a24;
+      --color-block-navy:   #0d0c1e;
+
+      --color-danger:          #ff5c8a;
+      --color-danger-fg:       #000000;
+      --color-focus:           #ffffff;
+      --color-overlay-scrim:   rgba(0, 0, 0, 0.75);
+
+      --shadow-hairline: 0 0 0 1px var(--color-hairline);
+      --shadow-float:    0 4px 16px rgba(0,0,0,0.25);
+      --shadow-modal:    0 16px 48px rgba(0,0,0,0.4);
+    }
+  }
+}
+
+/* =====================================================================
+   RESET
+   ===================================================================== */
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  button { font: inherit; cursor: pointer; }
+  input, textarea, select { font: inherit; }
+}
+
+/* =====================================================================
+   BASE
+   ===================================================================== */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1.45;
+    letter-spacing: -0.26px;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "kern" 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: var(--r-xs);
+  }
+
+  h1, h2, h3, h4 { margin: 0; }
+  p { margin: 0; }
+}
+
+/* =====================================================================
+   UTILITIES
+   ===================================================================== */
+@layer utilities {
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Buttons
+   ===================================================================== */
+@layer components {
+  /* Primary pill CTA */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-xs);
+    padding: 10px 20px;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-button);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    border: none;
+    border-radius: var(--r-pill);
+    text-decoration: none;
+    transition: transform var(--dur-micro) var(--ease-out),
+                opacity var(--dur-micro) var(--ease-out);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .btn-primary:hover  { opacity: 0.88; }
+  .btn-primary:active { transform: scale(0.975); }
+
+  /* Secondary pill */
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-xs);
+    padding: 8px 18px 10px;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-button);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-pill);
+    text-decoration: none;
+    transition: background var(--dur-micro) var(--ease-out),
+                transform var(--dur-micro) var(--ease-out);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .btn-secondary:hover  { background: var(--color-surface-soft); }
+  .btn-secondary:active { transform: scale(0.975); }
+
+  /* Tertiary text button (link-style hit target) */
+  .btn-tertiary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xxs);
+    padding: var(--sp-xs) var(--sp-sm);
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-link);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    border: none;
+    border-radius: var(--r-full);
+    text-decoration: none;
+    transition: opacity var(--dur-micro) var(--ease-out);
+    cursor: pointer;
+  }
+  .btn-tertiary:hover { opacity: 0.7; }
+
+  /* Circular icon button */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px; height: 40px;
+    padding: 0;
+    background: var(--color-surface-soft);
+    color: var(--color-ink);
+    font-size: 18px;
+    line-height: 1;
+    border: none;
+    border-radius: var(--r-full);
+    transition: background var(--dur-micro) var(--ease-out),
+                transform var(--dur-micro) var(--ease-out);
+    cursor: pointer;
+  }
+  .btn-icon:hover  { background: var(--color-hairline); }
+  .btn-icon:active { transform: scale(0.94); }
+
+  /* Danger pill */
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-xs);
+    padding: 10px 20px;
+    background: var(--color-danger);
+    color: var(--color-danger-fg);
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-button);
+    line-height: 1.40;
+    letter-spacing: -0.10px;
+    border: none;
+    border-radius: var(--r-pill);
+    transition: opacity var(--dur-micro) var(--ease-out),
+                transform var(--dur-micro) var(--ease-out);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .btn-danger:hover  { opacity: 0.85; }
+  .btn-danger:active { transform: scale(0.975); }
+
+  /* Small variant for action rows */
+  .btn-sm {
+    font-size: 16px;
+    padding: 6px 16px;
+    min-height: 36px;
+  }
+}
+
+/* =====================================================================
+   LAYOUT — Shell
+   ===================================================================== */
+@layer components {
+  .vault-shell {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--sp-xxl) var(--sp-xl);
+  }
+
+  /* ---- Color-block header accent ---- */
+  .vault-header-block {
+    background: var(--color-block-lilac);
+    border-radius: var(--r-lg);
+    padding: var(--sp-xl) var(--sp-xxl);
+    margin-bottom: var(--sp-xxl);
+  }
+  .vault-header-block h1 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    color: var(--color-ink);
+  }
+
+  .vault-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-sm);
+  }
+  .vault-header h1 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    margin-right: auto;
+  }
+  .vault-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-xs);
+  }
+
+  /* ---- Toolbar: search + filters ---- */
+  .vault-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sp-md);
+    margin-bottom: var(--sp-lg);
+  }
+  @media (min-width: 36rem) {
+    .vault-toolbar {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+  }
+
+  .vault-search {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-xs);
+  }
+  .vault-search input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+  }
+  .vault-search input::placeholder {
+    color: var(--color-hairline);
+  }
+
+  /* ---- Tag bar ---- */
+  .vault-tagbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    align-items: center;
+    padding: var(--sp-sm) 0;
+    margin-bottom: var(--sp-md);
+  }
+  .vault-tagbar:empty { display: none; }
+
+  .tag-pill {
+    padding: 6px 18px;
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    line-height: 1.45;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-pill);
+    transition: background var(--dur-micro) var(--ease-out),
+                color var(--dur-micro) var(--ease-out);
+    cursor: pointer;
+  }
+  .tag-pill:hover {
+    background: var(--color-surface-soft);
+  }
+  .tag-pill[aria-pressed="true"] {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: transparent;
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Entry cards
+   ===================================================================== */
+@layer components {
+  #entry-list {
+    display: grid;
+    gap: var(--sp-md);
+  }
+
+  .vault-entry {
+    padding: var(--sp-lg);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-lg);
+    /* No shadow — hairline border is the elevation, per Figma philosophy */
+  }
+
+  .vault-entry h3 {
+    font-family: var(--font-sans);
+    font-size: 24px;
+    font-weight: var(--fw-card-title);
+    line-height: 1.45;
+    letter-spacing: 0;
+    color: var(--color-ink);
+    margin-bottom: var(--sp-xs);
+  }
+
+  .vault-entry-meta {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    line-height: 1.45;
+    letter-spacing: -0.14px;
+    color: var(--color-ink);
+    margin-bottom: var(--sp-xxs);
+  }
+  .vault-entry-meta strong {
+    font-weight: var(--fw-link);
+  }
+
+  .vault-entry-password {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xs);
+    font-family: var(--font-mono);
+    font-size: 16px;
+  }
+
+  .vault-entry-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xxs);
+    margin: var(--sp-sm) 0 0 0;
+    padding: 0;
+  }
+  .vault-entry-tag {
+    padding: 2px 10px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    background: var(--color-surface-soft);
+    color: var(--color-ink);
+    border-radius: var(--r-sm);
+  }
+
+  .vault-entry-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    margin-top: var(--sp-md);
+    padding-top: var(--sp-md);
+    border-top: 1px solid var(--color-hairline-soft);
+  }
+
+  .vault-empty {
+    padding: var(--sp-xxl);
+    text-align: center;
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: var(--fw-body-sm);
+    color: var(--color-ink);
+  }
+
+  .vault-status {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: var(--fw-body-sm);
+    color: var(--color-ink);
+    margin-bottom: var(--sp-md);
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Entry row: TOTP
+   ===================================================================== */
+@layer components {
+  .vault-entry-totp {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-xs);
+    margin-top: var(--sp-sm);
+    padding: var(--sp-sm) var(--sp-md);
+    background: var(--color-surface-soft);
+    border-radius: var(--r-md);
+  }
+  .vault-entry-totp-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    color: var(--color-ink);
+  }
+  .vault-totp-code {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.05em;
+    color: var(--color-ink);
+  }
+  .vault-totp-ring {
+    width: 24px; height: 24px;
+    flex: 0 0 auto;
+    transform: rotate(-90deg);
+  }
+  .vault-totp-ring-track {
+    fill: none;
+    stroke: var(--color-hairline);
+    stroke-width: 4;
+  }
+  .vault-totp-ring-progress {
+    fill: none;
+    stroke: var(--color-primary);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 80ms linear;
+  }
+  .vault-totp-countdown {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink);
+    min-width: 2ch;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vault-totp-ring { display: none; }
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Entry row: custom fields
+   ===================================================================== */
+@layer components {
+  .vault-entry-customs {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--sp-xxs) var(--sp-md);
+    margin: var(--sp-sm) 0 0 0;
+    font-size: 16px;
+  }
+  .vault-entry-custom-key {
+    font-weight: var(--fw-link);
+    color: var(--color-ink);
+  }
+  .vault-entry-custom-value {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xs);
+    font-family: var(--font-mono);
+    color: var(--color-ink);
+  }
+}
+
+/* =====================================================================
+   COMPONENTS — Modal / Dialog
+   ===================================================================== */
+@layer components {
+  dialog {
+    width: min(36rem, 100vw - 2rem);
+    padding: var(--sp-xl);
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-modal);
+  }
+  dialog::backdrop {
+    background: var(--color-overlay-scrim);
+  }
+
+  dialog h2 {
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: var(--fw-headline);
+    line-height: 1.35;
+    letter-spacing: -0.26px;
+    margin-bottom: var(--sp-lg);
+  }
+
+  dialog form {
+    display: grid;
+    gap: var(--sp-md);
+  }
+
+  dialog label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    margin-bottom: var(--sp-xxs);
+  }
+
+  dialog input,
+  dialog textarea {
+    width: 100%;
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: var(--fw-body);
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-md);
+  }
+  dialog textarea { resize: vertical; }
+
+  .field-with-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    align-items: stretch;
+  }
+  .field-with-toggle input { flex: 1; min-width: 0; }
+
+  .dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-xs);
+    margin-top: var(--sp-md);
+    padding-top: var(--sp-md);
+    border-top: 1px solid var(--color-hairline-soft);
+  }
+  .dialog-actions-spacer { flex: 1; }
+}
+
+/* =====================================================================
+   DEMO CONTROLS (theme toggle, etc.)
+   ===================================================================== */
+@layer components {
+  .demo-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+    padding: var(--sp-sm) var(--sp-xl);
+    background: var(--color-surface-soft);
+    border-bottom: 1px solid var(--color-hairline);
+    font-size: 14px;
+  }
+  .demo-bar-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.60px;
+    text-transform: uppercase;
+    margin-right: auto;
+  }
+  .demo-toggle {
+    padding: 4px 16px;
+    font-size: 14px;
+    font-weight: var(--fw-body-sm);
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--r-pill);
+    cursor: pointer;
+    transition: background var(--dur-micro) var(--ease-out);
+  }
+  .demo-toggle.active {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: transparent;
+  }
+}
+
+/* =====================================================================
+   RESPONSIVE
+   ===================================================================== */
+@layer components {
+  @media (max-width: 768px) {
+    .vault-shell {
+      padding: var(--sp-lg) var(--sp-md);
+    }
+    .vault-header-block {
+      border-radius: 0;
+      margin-left: calc(-1 * var(--sp-md));
+      margin-right: calc(-1 * var(--sp-md));
+      padding: var(--sp-lg);
+    }
+    .vault-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    dialog {
+      border-radius: var(--r-lg);
+      padding: var(--sp-lg);
+    }
+  }
+  @media (max-width: 560px) {
+    .btn-primary, .btn-secondary, .btn-danger {
+      font-size: 16px;
+      padding: 8px 16px;
+    }
+    dialog h2 {
+      font-size: 22px;
+    }
+  }
+}
+
+/* =====================================================================
+   REDUCED MOTION
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ==================================================================
+     DEMO BAR — theme toggle + annotation
+     ================================================================== -->
+<div class="demo-bar">
+  <span class="demo-bar-label">Design Preview</span>
+  <span style="font-size:13px;opacity:0.7;">Figma DESIGN.md applied to Dragon Vault</span>
+  <span style="flex:1"></span>
+  <button class="demo-toggle active" data-theme="auto" id="theme-auto">Auto</button>
+  <button class="demo-toggle" data-theme="light" id="theme-light">Light</button>
+  <button class="demo-toggle" data-theme="dark" id="theme-dark">Dark</button>
+</div>
+
+<!-- ==================================================================
+     VAULT SHELL
+     ================================================================== -->
+<div class="vault-shell">
+
+  <!-- ---- Header block on lilac ---- -->
+  <div class="vault-header-block">
+    <div class="vault-header">
+      <h1>Dragon Vault</h1>
+      <div class="vault-header-actions">
+        <button class="btn-secondary btn-sm" type="button">Lock now</button>
+        <button class="btn-primary btn-sm" type="button">+ New Entry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- Toolbar: search ---- -->
+  <div class="vault-toolbar">
+    <div class="vault-search" role="search">
+      <label for="search-input" class="visually-hidden">Search entries</label>
+      <input id="search-input" type="search"
+             placeholder="Search name, username, URL, notes, tags…"
+             autocomplete="off" />
+      <button class="btn-tertiary" type="button" hidden>Clear filters</button>
+    </div>
+  </div>
+
+  <!-- ---- Tag bar ---- -->
+  <div class="vault-tagbar" role="group" aria-label="Filter by tag">
+    <button class="tag-pill" type="button" aria-pressed="false">email</button>
+    <button class="tag-pill" type="button" aria-pressed="true">work</button>
+    <button class="tag-pill" type="button" aria-pressed="false">personal</button>
+    <button class="tag-pill" type="button" aria-pressed="false">finance</button>
+    <button class="tag-pill" type="button" aria-pressed="false">social</button>
+  </div>
+
+  <!-- ---- Status line ---- -->
+  <p class="vault-status" role="status">3 entries. <span style="opacity:0.55;">Showing 3 of 3 entries.</span></p>
+
+  <!-- ---- Entry list ---- -->
+  <div id="entry-list">
+
+    <!-- Entry 1: with password + tags + custom fields + TOTP -->
+    <article class="vault-entry">
+      <h3>Google Workspace</h3>
+      <p class="vault-entry-meta"><strong>Username:</strong> admin@company.com</p>
+      <p class="vault-entry-meta"><strong>URL:</strong> admin.google.com</p>
+      <p class="vault-entry-meta vault-entry-password">
+        <strong>Password:</strong>
+        <span>••••••••</span>
+        <button class="btn-icon" type="button" aria-label="Show password" style="width:32px;height:32px;font-size:14px;">👁</button>
+      </p>
+      <p class="vault-entry-tags">
+        <span class="vault-entry-tag">work</span>
+        <span class="vault-entry-tag">email</span>
+      </p>
+      <!-- TOTP block -->
+      <div class="vault-entry-totp">
+        <span class="vault-entry-totp-label">TOTP</span>
+        <span class="vault-totp-code">482 916</span>
+        <svg class="vault-totp-ring" viewBox="0 0 36 36" aria-hidden="true" focusable="false">
+          <circle class="vault-totp-ring-track" cx="18" cy="18" r="15" pathLength="100"/>
+          <circle class="vault-totp-ring-progress" cx="18" cy="18" r="15" pathLength="100" style="stroke-dashoffset:35"/>
+        </svg>
+        <span class="vault-totp-countdown" aria-label="Seconds remaining">18</span>
+        <button class="btn-secondary btn-sm" type="button" style="margin-left:auto;">Copy</button>
+      </div>
+      <div class="vault-entry-actions">
+        <button class="btn-secondary btn-sm" type="button">Copy username</button>
+        <button class="btn-secondary btn-sm" type="button">Copy password</button>
+        <button class="btn-secondary btn-sm" type="button">Edit</button>
+        <span style="flex:1"></span>
+        <button class="btn-danger btn-sm" type="button">Delete</button>
+      </div>
+    </article>
+
+    <!-- Entry 2: simpler, no TOTP -->
+    <article class="vault-entry">
+      <h3>GitHub</h3>
+      <p class="vault-entry-meta"><strong>Username:</strong> dev-user</p>
+      <p class="vault-entry-meta"><strong>URL:</strong> github.com</p>
+      <p class="vault-entry-meta vault-entry-password">
+        <strong>Password:</strong>
+        <span>••••••••</span>
+        <button class="btn-icon" type="button" aria-label="Show password" style="width:32px;height:32px;font-size:14px;">👁</button>
+      </p>
+      <p class="vault-entry-tags">
+        <span class="vault-entry-tag">work</span>
+        <span class="vault-entry-tag">personal</span>
+      </p>
+      <!-- Custom fields -->
+      <dl class="vault-entry-customs">
+        <dt class="vault-entry-custom-key">API Token</dt>
+        <dd class="vault-entry-custom-value">
+          <span>••••••••</span>
+          <button class="btn-icon" type="button" style="width:28px;height:28px;font-size:12px;">👁</button>
+        </dd>
+      </dl>
+      <div class="vault-entry-actions">
+        <button class="btn-secondary btn-sm" type="button">Copy username</button>
+        <button class="btn-secondary btn-sm" type="button">Copy password</button>
+        <button class="btn-secondary btn-sm" type="button">Edit</button>
+        <span style="flex:1"></span>
+        <button class="btn-danger btn-sm" type="button">Delete</button>
+      </div>
+    </article>
+
+    <!-- Entry 3: minimal -->
+    <article class="vault-entry">
+      <h3>Netflix</h3>
+      <p class="vault-entry-meta"><strong>Username:</strong> family@email.com</p>
+      <p class="vault-entry-meta"><strong>URL:</strong> netflix.com</p>
+      <p class="vault-entry-meta vault-entry-password">
+        <strong>Password:</strong>
+        <span>••••••••</span>
+        <button class="btn-icon" type="button" aria-label="Show password" style="width:32px;height:32px;font-size:14px;">👁</button>
+      </p>
+      <p class="vault-entry-tags">
+        <span class="vault-entry-tag">personal</span>
+        <span class="vault-entry-tag">social</span>
+      </p>
+      <div class="vault-entry-actions">
+        <button class="btn-secondary btn-sm" type="button">Copy username</button>
+        <button class="btn-secondary btn-sm" type="button">Copy password</button>
+        <button class="btn-secondary btn-sm" type="button">Edit</button>
+        <span style="flex:1"></span>
+        <button class="btn-danger btn-sm" type="button">Delete</button>
+      </div>
+    </article>
+
+  </div><!-- /entry-list -->
+</div><!-- /vault-shell -->
+
+<!-- ==================================================================
+     ENTRY MODAL (shown by default for review)
+     ================================================================== -->
+<dialog id="entry-modal" open>
+  <form method="dialog">
+    <h2>New entry</h2>
+
+    <div>
+      <label for="field-name">Name</label>
+      <input id="field-name" type="text" required autocomplete="off" value="Google Workspace" />
+    </div>
+
+    <div>
+      <label for="field-username">Username</label>
+      <input id="field-username" type="text" autocomplete="off" value="admin@company.com" />
+    </div>
+
+    <div>
+      <label for="field-password">Password</label>
+      <div class="field-with-toggle">
+        <input id="field-password" type="password" autocomplete="off" value="s3cur3-p4ssw0rd" />
+        <button class="btn-icon" type="button" aria-label="Show password" style="width:40px;height:40px;">👁</button>
+        <button class="btn-icon" type="button" aria-label="Generate password" style="width:40px;height:40px;">🎲</button>
+      </div>
+    </div>
+
+    <div>
+      <label for="field-url">URL</label>
+      <input id="field-url" type="url" autocomplete="off" value="admin.google.com" />
+    </div>
+
+    <div>
+      <label for="field-notes">Notes</label>
+      <textarea id="field-notes" rows="3" autocomplete="off">Primary admin account for Google Workspace.</textarea>
+    </div>
+
+    <div>
+      <label for="field-tags">Tags (comma-separated)</label>
+      <input id="field-tags" type="text" autocomplete="off" value="work, email" />
+    </div>
+
+    <!-- TOTP section -->
+    <fieldset style="margin:0;padding:var(--sp-md);border:1px solid var(--color-hairline);border-radius:var(--r-md);display:grid;gap:var(--sp-sm);">
+      <legend style="font-family:var(--font-mono);font-size:12px;font-weight:400;letter-spacing:0.60px;text-transform:uppercase;padding-inline:var(--sp-xs);">TOTP (one-time codes)</legend>
+      <div>
+        <label for="field-totp">Base32 secret</label>
+        <input id="field-totp" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. JBSWY3DPEHPK3PXP" />
+      </div>
+      <p style="font-family:var(--font-mono);font-size:14px;color:var(--color-ink);margin:0;">Current code: 482 916</p>
+    </fieldset>
+
+    <!-- Custom fields -->
+    <fieldset style="margin:0;padding:var(--sp-md);border:1px solid var(--color-hairline);border-radius:var(--r-md);display:grid;gap:var(--sp-sm);">
+      <legend style="font-family:var(--font-mono);font-size:12px;font-weight:400;letter-spacing:0.60px;text-transform:uppercase;padding-inline:var(--sp-xs);">Custom fields</legend>
+      <div style="display:grid;grid-template-columns:1fr 1.5fr auto;gap:var(--sp-xs);align-items:center;">
+        <input type="text" placeholder="Label" value="Recovery email" style="padding:10px 12px;font-size:16px;background:var(--color-canvas);color:var(--color-ink);border:1px solid var(--color-hairline);border-radius:var(--r-md);" />
+        <input type="text" placeholder="Value" value="backup@personal.com" style="padding:10px 12px;font-size:16px;background:var(--color-canvas);color:var(--color-ink);border:1px solid var(--color-hairline);border-radius:var(--r-md);" />
+        <button class="btn-icon" type="button" style="width:36px;height:36px;font-size:18px;">×</button>
+      </div>
+      <button class="btn-secondary btn-sm" type="button" style="justify-self:start;">+ Add custom field</button>
+    </fieldset>
+
+    <div class="dialog-actions">
+      <button class="btn-secondary" type="button">Cancel</button>
+      <span class="dialog-actions-spacer"></span>
+      <button class="btn-primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ==================================================================
+     THEME SWITCHER SCRIPT
+     ================================================================== -->
+<script>
+  const html = document.documentElement;
+  const btns = {
+    auto:  document.getElementById('theme-auto'),
+    light: document.getElementById('theme-light'),
+    dark:  document.getElementById('theme-dark'),
+  };
+
+  function setTheme(mode) {
+    // Remove forced scheme
+    if (mode === 'light') {
+      html.style.colorScheme = 'light';
+    } else if (mode === 'dark') {
+      html.style.colorScheme = 'dark';
+    } else {
+      html.style.colorScheme = '';
+    }
+    // Update button active states
+    Object.entries(btns).forEach(([key, btn]) => {
+      btn.classList.toggle('active', key === mode);
+    });
+    // Persist
+    try { localStorage.setItem('design-preview-theme', mode); } catch (_) {}
+  }
+
+  btns.auto.addEventListener('click',  () => setTheme('auto'));
+  btns.light.addEventListener('click', () => setTheme('light'));
+  btns.dark.addEventListener('click',  () => setTheme('dark'));
+
+  // Restore persisted preference
+  try {
+    const saved = localStorage.getItem('design-preview-theme');
+    if (saved) setTheme(saved);
+  } catch (_) {}
+</script>
+
+</body>
+</html>

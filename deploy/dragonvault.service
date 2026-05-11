@@ -1,0 +1,33 @@
+# Dragon Vault — systemd unit file (REQ-061-L)
+#
+# Install: sudo cp dragonvault.service /etc/systemd/system/
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable --now dragonvault
+#
+# View logs: sudo journalctl -u dragonvault -f
+#
+# DataProtection keys are persisted to /var/opt/dragonvault/dpkeys
+# (outside the publish tree, so they survive deploys).
+
+[Unit]
+Description=Dragon Vault Password Manager
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/opt/dragonvault
+ExecStart=/usr/bin/dotnet /var/opt/dragonvault/publish/PasswordManager.Web.dll
+Restart=always
+RestartSec=10
+
+# --- Environment ---
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+# ASPNETCORE_URLS uses 127.0.0.1 (not localhost) to avoid IPv6 ambiguity.
+
+[Install]
+WantedBy=multi-user.target
