@@ -29,7 +29,11 @@ in your browser. Installable as a PWA on Android and desktop.
 
 ## Screenshots
 
-![Login page](docs/login.png)
+| Login | Vault Entries |
+|-------|---------------|
+| ![Login page](docs/login.png) | ![Vault entries](docs/vault-entries.png) |
+
+![Password Generator](docs/generator.png)
 
 ---
 
