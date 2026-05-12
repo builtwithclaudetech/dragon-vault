@@ -623,6 +623,7 @@ export async function getJson(url) {
         method: 'GET',
         credentials: 'same-origin',
         headers: { 'Accept': 'application/json' },
+        cache: 'no-store',
     });
     if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`);
     return await res.json();

@@ -83,7 +83,9 @@ self.addEventListener('fetch', (event) => {
   // ---- Network-only for authenticated API endpoints (REQ-050) ----
   if (NEVER_CACHE_PREFIXES.some((prefix) => path.startsWith(prefix))) {
     // No fallback — these endpoints are useless offline.
-    event.respondWith(fetch(request));
+    // cache: 'no-store' bypasses the browser HTTP cache so PUT-then-GET
+    // always returns the latest rowVersion (prevents spurious 412 on edits).
+    event.respondWith(fetch(request, { cache: 'no-store' }));
     return;
   }
 

@@ -502,7 +502,7 @@
                     row.appendChild(metaLine('Username', username));
                 }
                 if (url) {
-                    row.appendChild(metaLine('URL', url));
+                    row.appendChild(urlMetaLine(url));
                 }
                 if (password) {
                     row.appendChild(renderPasswordLine(password));
@@ -668,6 +668,26 @@
                 strong.textContent = `${label}: `;
                 p.appendChild(strong);
                 p.appendChild(document.createTextNode(value));
+                return p;
+            }
+
+            function urlMetaLine(url) {
+                const p = document.createElement('p');
+                p.className = 'vault-entry-meta';
+                const strong = document.createElement('strong');
+                strong.textContent = 'URL: ';
+                p.appendChild(strong);
+                const isHttp = url.startsWith('http://') || url.startsWith('https://');
+                if (isHttp) {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.textContent = url;
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                    p.appendChild(a);
+                } else {
+                    p.appendChild(document.createTextNode(url));
+                }
                 return p;
             }
 
@@ -1025,7 +1045,12 @@
                     closeModal();
                     await refresh();
                 } catch (err) {
-                    formStatus.textContent = 'Save failed. ' + (err && err.message ? err.message : '');
+                    const msg = (err && err.message) ? err.message : '';
+                    if (msg.includes('412')) {
+                        formStatus.textContent = 'Save failed: this entry was modified elsewhere. Reload the page and try again.';
+                    } else {
+                        formStatus.textContent = 'Save failed. ' + msg;
+                    }
                 }
             }
 
